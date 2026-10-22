@@ -295,6 +295,97 @@ test('extractions and imports are private to their author', async () => {
   await users.a.client.from('books').delete().eq('id', book.data.id)
 })
 
+test('discoveries: saved with evidence, deduplicated, private, and filed into the Story Bible on approval', async () => {
+  const a = users.a.client
+  const book = await a.from('books').insert({ title: 'Salt Letters' }).select('id').single()
+  const fileId = crypto.randomUUID()
+  await a.from('manuscript_files').insert({
+    id: fileId, book_id: book.data.id, storage_path: `${users.a.id}/${book.data.id}/${fileId}-x.txt`,
+    original_name: 'x.txt', file_ext: 'txt', mime_type: 'text/plain', size_bytes: 10, upload_status: 'validated',
+  })
+  const text = 'Mara Vance worked as a lighthouse keeper. Mara and Eli were sisters. They met at the Harbor Diner.'
+  const chunk = await a.from('document_chunks').insert({
+    manuscript_file_id: fileId, book_id: book.data.id, chunk_index: 0, chapter_label: 'Chapter 1', content: text, char_start: 0, char_end: text.length,
+  }).select('id').single()
+  const task = await a.from('ai_tasks').insert({ task_type: 'book_analysis', idempotency_key: `analyze:${fileId}` }).select('id').single()
+  const f = (o) => ({ statement_type: 'narrator', confidence: 0.9, char_start: 0, char_end: 10, payload: {}, ...o })
+  const facts = [
+    f({ category: 'character', entity_type: 'character', entity_label: 'Mara Vance', attribute: 'occupation', value: 'lighthouse keeper', excerpt: 'Mara Vance worked as a lighthouse keeper.' }),
+    f({ category: 'character', entity_type: 'character', entity_label: 'Mara Vance', attribute: 'occupation', value: 'Lighthouse Keeper', excerpt: 'again' }),
+    f({ category: 'character', entity_type: 'character', entity_label: 'Mara Vance', attribute: 'appearance.hair', value: 'salt gray', excerpt: 'x' }),
+    f({ category: 'relationship', entity_type: 'relationship', entity_label: 'Mara', attribute: 'sisters', value: 'Mara and Eli are sisters', excerpt: 'Mara and Eli were sisters.', payload: { related_name: 'Eli', relationship_category: 'family' } }),
+    f({ category: 'world', entity_type: 'world_element', entity_label: 'Harbor Diner', attribute: 'description', value: 'Where they met', excerpt: 'They met at the Harbor Diner.', payload: { world_category: 'business' } }),
+    f({ category: 'timeline', entity_type: 'story_event', entity_label: 'The meeting', attribute: 'event', value: 'They meet', statement_type: 'rumor', confidence: 0.5, excerpt: 'They met', payload: { characters: ['Mara Vance'] } }),
+  ]
+  const stolen = await users.b.client.rpc('save_chunk_discoveries', { p_chunk_id: chunk.data.id, p_task_id: task.data.id, p_summary: 's', p_facts: facts })
+  assert.match(stolen.error?.message ?? '', /CHUNK_NOT_FOUND/)
+  const saved = await a.rpc('save_chunk_discoveries', { p_chunk_id: chunk.data.id, p_task_id: task.data.id, p_summary: 'Mara keeps the light.', p_facts: facts })
+  assert.equal(saved.error, null)
+  assert.equal(saved.data, 5, 'the repeated occupation becomes a second source, not a second fact')
+  const { data: c } = await a.from('document_chunks').select('analysis_status, summary').eq('id', chunk.data.id).single()
+  assert.deepEqual(c, { analysis_status: 'completed', summary: 'Mara keeps the light.' })
+  const { data: proposed } = await a.from('canon_facts').select('id, entity_type, attribute, status, fact_sources(id)').eq('book_id', book.data.id).order('created_at')
+  assert.equal(proposed.length, 5)
+  assert.equal(proposed[0].fact_sources.length, 2)
+  assert.ok(proposed.every((p) => p.status === 'proposed'))
+  assert.deepEqual((await users.b.client.from('canon_facts').select('id').eq('book_id', book.data.id)).data, [])
+
+  // Another author cannot approve them.
+  const hijack = await users.b.client.rpc('review_discoveries', { p_fact_ids: proposed.map((p) => p.id), p_action: 'approve' })
+  assert.deepEqual(hijack.data, { updated: 0 })
+
+  const approved = await a.rpc('review_discoveries', { p_fact_ids: proposed.map((p) => p.id), p_action: 'approve' })
+  assert.deepEqual(approved.data, { updated: 5 })
+  const { data: chars } = await a.from('characters').select('id, full_name, occupation, appearance').order('full_name')
+  assert.deepEqual(chars.map((x) => x.full_name), ['Eli', 'Mara Vance'], 'a first name joins the matching full name')
+  const mara = chars.find((x) => x.full_name === 'Mara Vance')
+  assert.equal(mara.occupation, 'lighthouse keeper')
+  assert.deepEqual(mara.appearance, { hair: 'salt gray' })
+  const { data: states } = await a.from('character_states').select('attribute, value, book_id').eq('character_id', mara.id).order('attribute')
+  assert.deepEqual(states.map((s) => s.attribute), ['appearance.hair', 'occupation'])
+  assert.equal(states[0].book_id, book.data.id)
+  const { data: rel } = await a.from('relationships').select('category, custom_label').single()
+  assert.deepEqual(rel, { category: 'family', custom_label: 'sisters' })
+  const { data: we } = await a.from('world_elements').select('name, category, description, world_element_links(book_id)').single()
+  assert.deepEqual(we, { name: 'Harbor Diner', category: 'business', description: 'Where they met', world_element_links: [{ book_id: book.data.id }] })
+  const { data: ev } = await a.from('story_events').select('title, reliability, story_event_characters(character_id)').single()
+  assert.equal(ev.reliability, 'uncertain')
+  assert.deepEqual(ev.story_event_characters, [{ character_id: mara.id }])
+  const { data: after } = await a.from('canon_facts').select('status, entity_id').eq('book_id', book.data.id)
+  assert.ok(after.every((x) => x.status === 'approved' && x.entity_id))
+
+  // A later book changes the occupation: the profile keeps the first value, history keeps both.
+  const book2 = await a.from('books').insert({ title: 'Salt Letters 2' }).select('id').single()
+  const later = await a.from('canon_facts').insert({ book_id: book2.data.id, entity_type: 'character', entity_label: 'Mara Vance', attribute: 'occupation', value: 'harbor master', category: 'character' }).select('id').single()
+  await a.rpc('review_discoveries', { p_fact_ids: [later.data.id], p_action: 'approve' })
+  const { data: mara2 } = await a.from('characters').select('occupation').eq('id', mara.id).single()
+  assert.equal(mara2.occupation, 'lighthouse keeper')
+  const { data: hist } = await a.from('character_states').select('value').eq('character_id', mara.id).eq('attribute', 'occupation').order('created_at')
+  assert.deepEqual(hist.map((h) => h.value), ['lighthouse keeper', 'harbor master'])
+
+  // A fuller name later upgrades a character known only by a first name.
+  const e2 = await a.from('canon_facts').insert({ book_id: book.data.id, entity_type: 'character', entity_label: 'Eli Vance', attribute: 'age', value: '30', category: 'character' }).select('id').single()
+  await a.rpc('review_discoveries', { p_fact_ids: [e2.data.id], p_action: 'approve' })
+  const { data: eli } = await a.from('characters').select('full_name, nicknames').eq('id', chars.find((x) => x.full_name === 'Eli').id).single()
+  assert.deepEqual(eli, { full_name: 'Eli Vance', nicknames: ['Eli'] })
+
+  // Rejecting only changes status.
+  const nope = await a.from('canon_facts').insert({ book_id: book.data.id, entity_type: 'character', entity_label: 'Ghost', attribute: 'age', value: '900', category: 'character' }).select('id').single()
+  await a.rpc('review_discoveries', { p_fact_ids: [nope.data.id], p_action: 'reject' })
+  assert.equal((await a.from('characters').select('id').eq('full_name', 'Ghost')).data.length, 0)
+
+  // Usage is append-only for authors, and AI settings are private.
+  const use = await a.from('ai_usage').insert({ provider: 'mock', model: 'mock-small', input_tokens: 1, output_tokens: 1, cost_usd: 0.01 }).select('id').single()
+  const tamper = await a.from('ai_usage').delete().eq('id', use.data.id).select()
+  assert.ok(tamper.error || (tamper.data ?? []).length === 0)
+  await a.from('ai_settings').upsert({ daily_limit_usd: 3 }, { onConflict: 'owner_id' })
+  assert.deepEqual((await users.b.client.from('ai_settings').select('*')).data, [])
+  assert.equal(Number((await a.from('ai_settings').select('daily_limit_usd').single()).data.daily_limit_usd), 3)
+
+  await a.from('books').delete().in('id', [book.data.id, book2.data.id])
+  await a.from('characters').delete().in('full_name', ['Eli Vance', 'Mara Vance'])
+})
+
 test('deleting a book removes its chapters, scenes, and versions', async () => {
   const { error } = await users.a.client.from('books').delete().eq('id', bookA.id)
   assert.equal(error, null)

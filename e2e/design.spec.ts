@@ -68,7 +68,7 @@ test('every page passes WCAG AA checks in dark and light themes, and all three w
     await page.getByRole('combobox', { name: 'Theme' }).selectOption(theme)
     await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(theme === 'dark')
     await expectAccessible(page, `settings (${theme})`)
-    for (const path of ['/', '/library', bookUrl, `${bookUrl}?tab=files`, `${bookUrl}?tab=details`, '/studio']) {
+    for (const path of ['/', '/library', bookUrl, `${bookUrl}?tab=files`, `${bookUrl}?tab=details`, `${bookUrl}?tab=analysis`, '/studio', '/characters', '/world']) {
       await page.goto(path)
       await expectAccessible(page, `${path} (${theme})`)
     }
@@ -114,7 +114,7 @@ test('typography controls, daily goal, and session counter', async ({ page }) =>
   await page.goto('/settings')
   await page.getByRole('radio', { name: /Creative Drafting/ }).check({ force: true })
   await page.getByLabel('Daily word goal (optional)').fill('12')
-  await page.getByRole('button', { name: 'Set' }).click()
+  await page.getByRole('button', { name: 'Set', exact: true }).click()
   await page.getByLabel('Manuscript font size').fill('22')
   await page.getByLabel('Page width').selectOption('narrow')
   await expect(page.getByText('Saved to your account')).toBeVisible()

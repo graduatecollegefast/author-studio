@@ -33,7 +33,7 @@ git push -u origin main
 ## 4. Netlify
 1. Add new site > Import from Git > select the repository.
 2. Build settings come from `netlify.toml` (build `npm run build`, publish `dist`, functions `netlify/functions`).
-3. Site settings > Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (functions read these as a fallback; you may also set `SUPABASE_URL` and `SUPABASE_ANON_KEY`).
+3. Site settings > Environment variables: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (functions read these as a fallback; you may also set `SUPABASE_URL` and `SUPABASE_ANON_KEY`). For AI analysis add `ANTHROPIC_API_KEY` and/or `OPENAI_API_KEY` with the Functions scope, then redeploy. Never set `AI_MOCK` on the live site.
 4. Deploy. Then add the site URL to Supabase Auth (step 1.3).
 
 ## 5. Verify the live app

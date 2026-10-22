@@ -7,6 +7,8 @@ const env = {
   SUPABASE_URL: process.env.SUPABASE_URL ?? '',
   SUPABASE_ANON_KEY: process.env.SUPABASE_ANON_KEY ?? '',
   FUNCTIONS_PORT: '8899',
+  // Offline test AI provider; production never sets this.
+  AI_MOCK: '1',
 }
 
 export default defineConfig({

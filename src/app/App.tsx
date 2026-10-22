@@ -11,6 +11,10 @@ import { LibraryPage } from '@/pages/LibraryPage'
 import { BookDetailPage } from '@/pages/BookDetailPage'
 import { StudioIndexPage } from '@/pages/StudioIndexPage'
 import { SettingsPage } from '@/pages/SettingsPage'
+import { CharactersPage } from '@/pages/CharactersPage'
+import { CharacterDetailPage } from '@/pages/CharacterDetailPage'
+import { WorldPage } from '@/pages/WorldPage'
+import { WorldElementPage } from '@/pages/WorldElementPage'
 import { EmptyState, PageLoader } from '@/components/ui/feedback'
 
 // The editor bundle is large, so it loads only when the Writing Studio opens.
@@ -88,6 +92,10 @@ export function App() {
                 <Route path="library" element={<LibraryPage />} />
                 <Route path="books/:bookId" element={<BookDetailPage />} />
                 <Route path="studio" element={<StudioIndexPage />} />
+                <Route path="characters" element={<CharactersPage />} />
+                <Route path="characters/:characterId" element={<CharacterDetailPage />} />
+                <Route path="world" element={<WorldPage />} />
+                <Route path="world/:elementId" element={<WorldElementPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>

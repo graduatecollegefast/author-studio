@@ -14,6 +14,7 @@ import type { Profile } from '@/types/db'
 import { modes, type WritingMode } from '@/styles/tokens'
 import { PAGE_WIDTHS } from '@/contexts/PreferencesContext'
 import { cn } from '@/lib/utils'
+import { AISettingsCard } from '@/components/settings/AISettingsCard'
 
 function WritingPreferences() {
   const { prefs, setPrefs, syncState } = usePreferences()
@@ -218,6 +219,8 @@ export function SettingsPage() {
         </Card>
 
         <WritingPreferences />
+
+        <AISettingsCard />
 
         <Card>
           <CardHeader title="Display" />

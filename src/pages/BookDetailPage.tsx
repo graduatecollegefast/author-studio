@@ -13,6 +13,7 @@ import { BookCover } from '@/components/library/BookCover'
 import { BookFormDialog } from '@/components/library/BookFormDialog'
 import { ChapterList } from '@/components/library/ChapterList'
 import { ManuscriptFiles } from '@/components/library/ManuscriptFiles'
+import { AnalysisPanel } from '@/components/analysis/AnalysisPanel'
 import { qk, useBook } from '@/hooks/queries'
 import { deleteBook, markOpened, setArchived, uploadCover } from '@/services/books'
 import { cn, formatDate, formatNumber, labelize } from '@/lib/utils'
@@ -20,6 +21,7 @@ import { cn, formatDate, formatNumber, labelize } from '@/lib/utils'
 const TABS = [
   { id: 'chapters', label: 'Chapters' },
   { id: 'files', label: 'Manuscript files' },
+  { id: 'analysis', label: 'AI analysis' },
   { id: 'details', label: 'Details' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -176,6 +178,7 @@ export function BookDetailPage() {
       <div role="tabpanel">
         {tab === 'chapters' && <ChapterList bookId={book.id} />}
         {tab === 'files' && <ManuscriptFiles book={book} autoOpenPicker={params.get('upload') === '1'} />}
+        {tab === 'analysis' && <AnalysisPanel book={book} />}
         {tab === 'details' && (
           <Card className="p-6">
             <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2">
