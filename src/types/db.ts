@@ -91,6 +91,8 @@ export interface ManuscriptFile {
   analysis_status: Exclude<ProcessingStatus, 'needs_ocr'>
   error_message: string | null
   sha256: string | null
+  extracted_at: string | null
+  imported_at: string | null
   created_at: string
   updated_at: string
 }

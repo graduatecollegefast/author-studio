@@ -15,5 +15,7 @@ SUPABASE_URL=...  SUPABASE_ANON_KEY=...  SUPABASE_SERVICE_ROLE_KEY=...
 - With Docker: `supabase start` (Supabase CLI), then `supabase db reset` to apply migrations.
 - Without Docker: `scripts/local-stack/start.sh --reset` runs Postgres, GoTrue, PostgREST, and the Storage API from their open-source builds (set `AUTH_BIN`, `POSTGREST_BIN`, `STORAGE_SRC`). Keys are written to `.local-stack/keys.env`.
 
-## Last verified run (Phase 1)
-Fresh database built from the migrations, then: typecheck pass, 28/28 unit, 17/17 database/RLS, 3/3 end to end, production build pass.
+Accessibility: `e2e/design.spec.ts` runs axe (WCAG 2.0/2.1 A and AA) on every page in dark and light themes and on the Writing Studio in all three modes, and fails on contrast that axe cannot verify. `src/styles/tokens.test.ts` checks every declared color pair against WCAG ratios (manuscript text at 7:1).
+
+## Last verified run (Design system + Phase 2A)
+Fresh database built from all 6 migrations, then: typecheck pass, 145/145 unit, 19/19 database/RLS, 8/8 end to end (including accessibility), production build pass.

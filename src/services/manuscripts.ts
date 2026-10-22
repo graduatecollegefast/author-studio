@@ -1,6 +1,7 @@
 import { MANUSCRIPT_BUCKET, supabase } from '@/lib/supabase/client'
 import { buildStoragePath, validateManuscriptFile } from '@/lib/documents/validation'
 import type { ManuscriptFile } from '@/types/db'
+import { blocksToTiptap, type ExtractedChapter } from '@/lib/documents/structure'
 import { AppError, requireUserId, throwIfError } from './errors'
 import { logActivity } from './books'
 
@@ -126,4 +127,65 @@ export async function deleteManuscript(file: ManuscriptFile) {
 export async function setCurrentManuscript(bookId: string, fileId: string) {
   const { error } = await supabase.from('books').update({ current_manuscript_file_id: fileId }).eq('id', bookId)
   throwIfError(error)
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2: extraction and import
+// ---------------------------------------------------------------------------
+export interface ManuscriptExtraction {
+  manuscript_file_id: string
+  book_id: string
+  format: string
+  detected_title: string | null
+  word_count: number
+  character_count: number
+  page_count: number | null
+  chapter_count: number
+  structure: ExtractedChapter[]
+  warnings: string[]
+  needs_ocr: boolean
+  created_at: string
+}
+
+/** Queue text extraction. The background function answers immediately; progress shows on the file record. */
+export async function requestExtraction(fileId: string): Promise<void> {
+  const { data: session } = await supabase.auth.getSession()
+  const token = session.session?.access_token
+  if (!token) throw new AppError('You are signed out. Sign in again to continue.')
+  const { error } = await supabase.from('manuscript_files').update({ extraction_status: 'queued', error_message: null }).eq('id', fileId)
+  throwIfError(error)
+  let res: Response
+  try {
+    res = await fetch('/.netlify/functions/extract-manuscript-background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ fileId }),
+    })
+  } catch {
+    await supabase.from('manuscript_files').update({ extraction_status: 'failed', error_message: 'Could not reach the server.' }).eq('id', fileId)
+    throw new AppError('Could not reach the server to start text extraction.')
+  }
+  if (!res.ok && res.status !== 202) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string }
+    await supabase.from('manuscript_files').update({ extraction_status: 'failed', error_message: body.error ?? 'Extraction could not start.' }).eq('id', fileId)
+    throw new AppError(body.error ?? 'Extraction could not start.')
+  }
+}
+
+export async function getExtraction(fileId: string): Promise<ManuscriptExtraction | null> {
+  const { data, error } = await supabase.from('manuscript_extractions').select('*').eq('manuscript_file_id', fileId).maybeSingle()
+  throwIfError(error)
+  return data as ManuscriptExtraction | null
+}
+
+/** Turn selected extracted chapters into editable chapters and scenes after the book's existing ones. */
+export async function importExtraction(fileId: string, chapters: ExtractedChapter[]): Promise<number> {
+  const payload = chapters.map((c) => ({
+    title: c.title,
+    scenes: c.scenes.map((s, i) => ({ title: `Scene ${i + 1}`, content: blocksToTiptap(s.blocks), text: s.text })),
+  }))
+  const { data, error } = await supabase.rpc('import_manuscript', { p_file_id: fileId, p_chapters: payload })
+  throwIfError(error)
+  await logActivity('manuscript.imported', 'manuscript_file', fileId, { chapters: chapters.length })
+  return data as number
 }

@@ -10,7 +10,20 @@ Navigation shows later-phase sections greyed out with their phase number; they b
 - Find and replace, drag-and-drop reordering, resizable panels, and selected-text AI actions are later phases (reordering uses up/down controls now).
 - Display preferences (theme, text size) are stored per device.
 
-## Phase 2: Manuscript intelligence (next)
+## Design system: Creative Flow (complete)
+Palette, semantic color roles, three writing modes, typography controls, daily goal and session counter. See docs/DESIGN.md.
+
+## Phase 2: Manuscript intelligence (in progress)
+
+### 2A: Reading manuscripts (complete)
+- Text extraction for DOCX, PDF, EPUB, TXT and Markdown in a Netlify Background Function, started automatically after upload verification. Progress on the file record and an `ai_tasks` job row; safe to re-run.
+- Chapter detection (headings and lines like "Chapter Twelve", "Prologue", "Part Two"), scene breaks ("* * *", "#", rules), bold and italic kept.
+- PDF: paragraph reconstruction, running headers and page numbers removed, hyphenated line breaks joined. Scanned PDFs are marked **Needs OCR** and never imported as empty text.
+- EPUB: reads the spine, skips navigation, scripts and styles, refuses archives that expand past 300 MB.
+- Searchable `document_chunks` (about 6,000 characters each, on paragraph boundaries) with exact character offsets and chapter labels for cited analysis.
+- Preview and import: choose chapters, import after existing chapters as editable scenes. Imports do not count toward daily word goals.
+
+### 2B: AI analysis (next, needs an AI provider key)
 Extraction for DOCX/PDF/EPUB/TXT/MD with OCR warning for scanned PDFs, chunking into `document_chunks`, resumable background analysis jobs (`ai_tasks` with idempotency keys), Claude/OpenAI adapters with usage and spend tracking, discoveries with evidence into `canon_facts`/`fact_sources`, review and bulk approval, Character Bible and World Bible screens.
 
 ## Phase 3 to 6

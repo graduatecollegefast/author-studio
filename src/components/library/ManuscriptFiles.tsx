@@ -1,15 +1,17 @@
 import * as React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { CheckCircle2, Download, FileUp, MoreHorizontal, RefreshCw, Star, Trash2, XCircle } from 'lucide-react'
+import { BookOpenText, CheckCircle2, Download, FileUp, MoreHorizontal, RefreshCw, ScanText, Star, Trash2, XCircle } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { ImportDialog } from './ImportDialog'
 import { Button } from '@/components/ui/button'
 import { Badge, type BadgeTone } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/menu'
 import { EmptyState, ErrorState, PageLoader, Spinner } from '@/components/ui/feedback'
 import { Select } from '@/components/ui/field'
-import { useManuscripts, qk } from '@/hooks/queries'
-import { deleteManuscript, getDownloadUrl, setCurrentManuscript, uploadManuscript, verifyUpload } from '@/services/manuscripts'
+import { qk } from '@/hooks/queries'
+import { deleteManuscript, getDownloadUrl, listManuscripts, requestExtraction, setCurrentManuscript, uploadManuscript, verifyUpload } from '@/services/manuscripts'
 import { validateManuscriptFile } from '@/lib/documents/validation'
 import { formatBytes, formatDate, labelize } from '@/lib/utils'
 import type { Book, ManuscriptFile } from '@/types/db'
@@ -33,7 +35,25 @@ function statusTone(s: string): BadgeTone {
 
 export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpenPicker?: boolean }) {
   const qc = useQueryClient()
-  const { data: files, isLoading, error, refetch } = useManuscripts(book.id)
+  const { data: files, isLoading, error, refetch } = useQuery({
+    queryKey: qk.manuscripts(book.id),
+    queryFn: () => listManuscripts(book.id),
+    // Poll while text extraction is queued or running.
+    refetchInterval: (q) => (q.state.data?.some((f) => f.extraction_status === 'queued' || f.extraction_status === 'processing') ? 2000 : false),
+  })
+  const [importing, setImporting] = React.useState<ManuscriptFile | null>(null)
+
+  async function extract(file: ManuscriptFile) {
+    try {
+      const run = requestExtraction(file.id)
+      refresh()
+      await run
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not start text extraction')
+    } finally {
+      refresh()
+    }
+  }
   const [uploads, setUploads] = React.useState<LocalUpload[]>([])
   const [kind, setKind] = React.useState<'manuscript' | 'supporting'>('manuscript')
   const [dragging, setDragging] = React.useState(false)
@@ -62,6 +82,8 @@ export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpen
         if (saved.upload_status === 'validated' && kind === 'manuscript') {
           await setCurrentManuscript(book.id, saved.id)
         }
+        // Reading the text starts automatically for verified files.
+        if (saved.upload_status === 'validated') void extract(saved)
         setUploads((u) => u.map((x) => (x.key === key ? { ...x, state: 'done' } : x)))
         if (saved.upload_status === 'rejected') toast.error(`${file.name}: ${saved.error_message ?? 'rejected'}`)
         else toast.success(`${file.name} uploaded`)
@@ -209,18 +231,26 @@ export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpen
                       {f.file_ext.toUpperCase()} · {f.kind === 'manuscript' ? `Manuscript v${f.version}` : 'Supporting'}
                     </div>
                     {f.error_message && <div className="mt-1 text-xs text-alert-text">{f.error_message}</div>}
+                    {f.extraction_status === 'completed' && (
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <Button size="sm" variant="secondary" className="h-7" onClick={() => setImporting(f)}>
+                          <BookOpenText /> {f.imported_at ? 'Import again' : 'Preview and import'}
+                        </Button>
+                        {f.imported_at && <Badge tone="progress">Imported {formatDate(f.imported_at)}</Badge>}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-fg-muted">{formatBytes(f.size_bytes)}</td>
                   <td className="px-4 py-3">
                     <Badge tone={statusTone(f.upload_status)}>{labelize(f.upload_status)}</Badge>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge tone={statusTone(f.extraction_status)} title="Text extraction arrives in Phase 2">
-                      {labelize(f.extraction_status)}
+                    <Badge tone={statusTone(f.extraction_status)} data-testid="extraction-status">
+                      {f.extraction_status === 'needs_ocr' ? 'Needs OCR' : labelize(f.extraction_status)}
                     </Badge>
                   </td>
                   <td className="px-4 py-3">
-                    <Badge tone={statusTone(f.analysis_status)} title="AI analysis arrives in Phase 2">
+                    <Badge tone={statusTone(f.analysis_status)} title="AI analysis starts once an AI provider key is configured">
                       {labelize(f.analysis_status)}
                     </Badge>
                   </td>
@@ -257,6 +287,11 @@ export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpen
                             <Star /> Set as current manuscript
                           </DropdownMenuItem>
                         )}
+                        {f.upload_status === 'validated' && f.extraction_status !== 'queued' && f.extraction_status !== 'processing' && (
+                          <DropdownMenuItem onSelect={() => void extract(f)}>
+                            <ScanText /> {f.extraction_status === 'not_started' ? 'Read text' : 'Read text again'}
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem danger onSelect={() => setToDelete(f)}>
                           <Trash2 /> Delete file
                         </DropdownMenuItem>
@@ -270,6 +305,7 @@ export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpen
         </div>
       )}
 
+      <ImportDialog file={importing} onOpenChange={(o) => !o && setImporting(null)} />
       <ConfirmDialog
         open={toDelete !== null}
         onOpenChange={(o) => !o && setToDelete(null)}

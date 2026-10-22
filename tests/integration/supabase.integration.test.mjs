@@ -250,6 +250,32 @@ test('file records must point inside the owner folder', async () => {
   assert.ok(error)
 })
 
+test('extractions and imports are private to their author', async () => {
+  const book = await users.a.client.from('books').insert({ title: 'Import Book' }).select('id').single()
+  const fileId = crypto.randomUUID()
+  await users.a.client.from('manuscript_files').insert({
+    id: fileId, book_id: book.data.id, storage_path: `${users.a.id}/${book.data.id}/${fileId}-x.txt`,
+    original_name: 'x.txt', file_ext: 'txt', mime_type: 'text/plain', size_bytes: 10, upload_status: 'validated',
+  })
+  const ex = await users.a.client.from('manuscript_extractions').insert({
+    manuscript_file_id: fileId, book_id: book.data.id, format: 'txt', word_count: 2, chapter_count: 1, structure: [],
+  })
+  assert.equal(ex.error, null)
+  assert.deepEqual((await users.b.client.from('manuscript_extractions').select('*')).data, [])
+  const chapters = [{ title: 'One', scenes: [{ title: 'S', content: doc('Hello there'), text: 'Hello there' }] }]
+  const stolen = await users.b.client.rpc('import_manuscript', { p_file_id: fileId, p_chapters: chapters })
+  assert.match(stolen.error?.message ?? '', /FILE_NOT_FOUND/)
+  const bad = await users.a.client.rpc('import_manuscript', { p_file_id: fileId, p_chapters: [{ title: 'x', scenes: [{ content: { type: 'html' }, text: '' }] }] })
+  assert.match(bad.error?.message ?? '', /INVALID_CONTENT/)
+  const ok = await users.a.client.rpc('import_manuscript', { p_file_id: fileId, p_chapters: chapters })
+  assert.equal(ok.data, 1)
+  const { data: scenes } = await users.a.client.from('scenes').select('content_text, word_count').eq('book_id', book.data.id)
+  assert.deepEqual(scenes, [{ content_text: 'Hello there', word_count: 2 }])
+  const { data: f } = await users.a.client.from('manuscript_files').select('imported_at').eq('id', fileId).single()
+  assert.ok(f.imported_at)
+  await users.a.client.from('books').delete().eq('id', book.data.id)
+})
+
 test('deleting a book removes its chapters, scenes, and versions', async () => {
   const { error } = await users.a.client.from('books').delete().eq('id', bookA.id)
   assert.equal(error, null)
