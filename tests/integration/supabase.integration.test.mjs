@@ -268,11 +268,30 @@ test('extractions and imports are private to their author', async () => {
   const bad = await users.a.client.rpc('import_manuscript', { p_file_id: fileId, p_chapters: [{ title: 'x', scenes: [{ content: { type: 'html' }, text: '' }] }] })
   assert.match(bad.error?.message ?? '', /INVALID_CONTENT/)
   const ok = await users.a.client.rpc('import_manuscript', { p_file_id: fileId, p_chapters: chapters })
-  assert.equal(ok.data, 1)
+  assert.deepEqual(ok.data, { imported: 1, replaced: 0, kept: 0 })
   const { data: scenes } = await users.a.client.from('scenes').select('content_text, word_count').eq('book_id', book.data.id)
   assert.deepEqual(scenes, [{ content_text: 'Hello there', word_count: 2 }])
   const { data: f } = await users.a.client.from('manuscript_files').select('imported_at').eq('id', fileId).single()
   assert.ok(f.imported_at)
+
+  // Re-import with replace: an untouched chapter is replaced, an edited one is kept, nothing is duplicated.
+  const two = [
+    { title: 'One', scenes: [{ title: 'S', content: doc('First'), text: 'First' }] },
+    { title: 'Two', scenes: [{ title: 'S', content: doc('Second'), text: 'Second' }] },
+  ]
+  await users.a.client.rpc('import_manuscript', { p_file_id: fileId, p_chapters: two, p_replace: true })
+  const { data: afterFirst } = await users.a.client.from('chapters').select('id, title, position').eq('book_id', book.data.id).order('position')
+  assert.deepEqual(afterFirst.map((c) => c.title), ['One', 'Two'])
+  const { data: s2 } = await users.a.client.from('scenes').select('id, revision').eq('chapter_id', afterFirst[1].id).single()
+  await users.a.client.rpc('save_scene', { p_scene_id: s2.id, p_content: doc('Second, revised by hand'), p_content_text: 'Second, revised by hand', p_expected_revision: s2.revision })
+  const again = await users.a.client.rpc('import_manuscript', { p_file_id: fileId, p_chapters: two, p_replace: true })
+  assert.deepEqual(again.data, { imported: 2, replaced: 1, kept: 1 })
+  const { data: final } = await users.a.client.from('chapters').select('title, position').eq('book_id', book.data.id).order('position')
+  assert.deepEqual(final, [
+    { title: 'Two', position: 0 },
+    { title: 'One', position: 1 },
+    { title: 'Two', position: 2 },
+  ])
   await users.a.client.from('books').delete().eq('id', book.data.id)
 })
 

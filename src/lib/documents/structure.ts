@@ -22,8 +22,19 @@ export interface ExtractedChapter {
   title: string
   /** True when the title was found in the manuscript, false when we had to invent one. */
   detected: boolean
+  /** Title page, copyright, "Also by" and similar material before the story. Not imported by default. */
+  frontMatter?: boolean
   scenes: ExtractedScene[]
   wordCount: number
+}
+
+export interface CleanupSummary {
+  runningHeadsRemoved: number
+  pageNumbersRemoved: number
+  paragraphsRejoined: number
+  wordsRejoined: number
+  dropCapsMerged: number
+  dropCapsUnresolved: number
 }
 
 export interface ExtractionResult {
@@ -35,6 +46,7 @@ export interface ExtractionResult {
   pageCount: number | null
   warnings: string[]
   needsOcr: boolean
+  cleanup?: CleanupSummary
 }
 
 export interface Chunk {

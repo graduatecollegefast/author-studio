@@ -1,7 +1,7 @@
 import { MANUSCRIPT_BUCKET, supabase } from '@/lib/supabase/client'
 import { buildStoragePath, validateManuscriptFile } from '@/lib/documents/validation'
 import type { ManuscriptFile } from '@/types/db'
-import { blocksToTiptap, type ExtractedChapter } from '@/lib/documents/structure'
+import { blocksToTiptap, type CleanupSummary, type ExtractedChapter } from '@/lib/documents/structure'
 import { AppError, requireUserId, throwIfError } from './errors'
 import { logActivity } from './books'
 
@@ -144,6 +144,7 @@ export interface ManuscriptExtraction {
   structure: ExtractedChapter[]
   warnings: string[]
   needs_ocr: boolean
+  cleanup: CleanupSummary | null
   created_at: string
 }
 
@@ -179,13 +180,30 @@ export async function getExtraction(fileId: string): Promise<ManuscriptExtractio
 }
 
 /** Turn selected extracted chapters into editable chapters and scenes after the book's existing ones. */
-export async function importExtraction(fileId: string, chapters: ExtractedChapter[]): Promise<number> {
+export interface ImportResult {
+  imported: number
+  replaced: number
+  kept: number
+}
+
+/** Chapters previously imported from this file, and how many have been edited since. */
+export async function previousImport(fileId: string): Promise<{ total: number; edited: number }> {
+  const { data, error } = await supabase
+    .from('chapters')
+    .select('id, scenes(last_edited_at)')
+    .eq('source_manuscript_file_id', fileId)
+  throwIfError(error)
+  const rows = (data ?? []) as Array<{ id: string; scenes: Array<{ last_edited_at: string | null }> }>
+  return { total: rows.length, edited: rows.filter((r) => r.scenes.some((s) => s.last_edited_at)).length }
+}
+
+export async function importExtraction(fileId: string, chapters: ExtractedChapter[], replace = false): Promise<ImportResult> {
   const payload = chapters.map((c) => ({
     title: c.title,
     scenes: c.scenes.map((s, i) => ({ title: `Scene ${i + 1}`, content: blocksToTiptap(s.blocks), text: s.text })),
   }))
-  const { data, error } = await supabase.rpc('import_manuscript', { p_file_id: fileId, p_chapters: payload })
+  const { data, error } = await supabase.rpc('import_manuscript', { p_file_id: fileId, p_chapters: payload, p_replace: replace })
   throwIfError(error)
-  await logActivity('manuscript.imported', 'manuscript_file', fileId, { chapters: chapters.length })
-  return data as number
+  await logActivity('manuscript.imported', 'manuscript_file', fileId, { chapters: chapters.length, replace })
+  return data as ImportResult
 }

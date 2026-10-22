@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import AxeBuilder from '@axe-core/playwright'
-import { makeBlankPdf, makeDocx, makeEpub } from '../tests/functions/fixtures'
+import { makeBlankPdf, makeConvertedDocx, makeDocx, makeEpub } from '../tests/functions/fixtures'
 
 // Phase 2 (first slice): upload a finished manuscript, read its text, preview
 // detected chapters, import them as editable chapters, and keep searchable chunks.
@@ -132,4 +132,63 @@ test('EPUB extraction and scanned PDF detection', async ({ page }) => {
   // The import dialog and the file list (including the OCR warning) meet WCAG AA.
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()
   expect(results.violations.map((v) => `${v.id}: ${v.nodes[0]?.target.join(' ')}`)).toEqual([])
+})
+
+test('a print-layout Word file imports clean, and re-importing replaces the old chapters', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByLabel('Email').fill(email)
+  await page.getByLabel('Password').fill(password)
+  await page.getByRole('button', { name: 'Sign in' }).click()
+  await expect(page).toHaveURL(/\/$/)
+  await page.goto('/library?new=1')
+  const d = page.getByRole('dialog')
+  await d.getByLabel('Title', { exact: true }).fill('Soror Love')
+  await d.getByLabel('Pen name').fill('Shaun J. Phree')
+  await d.getByRole('button', { name: 'Create book' }).click()
+  await expect(page.getByRole('heading', { name: 'Soror Love' })).toBeVisible()
+  const bookUrl = page.url()
+
+  await page.getByRole('tab', { name: 'Manuscript files' }).click()
+  await page.getByTestId('manuscript-input').setInputFiles({
+    name: 'soror-love.docx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    buffer: Buffer.from(await makeConvertedDocx()),
+  })
+  const row = page.getByRole('row', { name: /soror-love\.docx/ })
+  await expect(row.getByTestId('extraction-status')).toHaveText('Completed', { timeout: 30_000 })
+  await row.getByRole('button', { name: 'Preview and import' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Import into chapters' })
+  await expect(dialog.getByTestId('cleanup-summary')).toContainText('removed 5 running headers and 1 page numbers')
+  await dialog.getByRole('button', { name: 'Import 2 chapters' }).click()
+  await expect(page.getByRole('link', { name: 'Chapter 1', exact: true })).toBeVisible()
+
+  await page.getByRole('link', { name: 'Chapter 1', exact: true }).click()
+  const editor = page.getByRole('textbox', { name: /Manuscript: Scene 1/ })
+  await expect(editor).toContainText('People were trying to find their way to their rooms.')
+  await expect(editor).toContainText('she continued to swipe through her phone. Lauren moved swiftly through the room.')
+  await expect(editor).not.toContainText('SHAUN J. PHREE')
+  await expect(editor).not.toContainText('SOROR LOVE')
+
+  // Edit chapter 2 so it must survive a re-import.
+  await page.goto(`${bookUrl}?tab=chapters`)
+  await page.getByRole('link', { name: 'Chapter 2', exact: true }).click()
+  const ed2 = page.getByRole('textbox', { name: /Manuscript: Scene 1/ })
+  await ed2.click()
+  await page.keyboard.press('Control+End')
+  await page.keyboard.type(' My own new sentence.')
+  await expect(page.getByTestId('save-status')).toHaveAttribute('data-status', 'saved', { timeout: 15_000 })
+
+  // Read again and re-import with replace.
+  await page.goto(`${bookUrl}?tab=files`)
+  const row2 = page.getByRole('row', { name: /soror-love\.docx/ })
+  await row2.getByRole('button', { name: 'Import again' }).click()
+  const dialog2 = page.getByRole('dialog', { name: 'Import into chapters' })
+  await expect(dialog2.getByText('Replace the 2 chapters imported from this file earlier')).toBeVisible()
+  await expect(dialog2.getByText(/1 of them has been edited since, so it stays/)).toBeVisible()
+  await dialog2.getByRole('button', { name: 'Import 2 chapters' }).click()
+
+  const links = page.getByRole('list').getByRole('link', { name: /^Chapter \d$/ })
+  await expect(links).toHaveText(['Chapter 2', 'Chapter 1', 'Chapter 2'])
+  await page.getByRole('link', { name: 'Chapter 2', exact: true }).first().click()
+  await expect(page.getByRole('textbox', { name: /Manuscript: Scene 1/ })).toContainText('My own new sentence.')
 })

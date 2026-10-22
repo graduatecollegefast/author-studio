@@ -5,7 +5,9 @@
 import mammoth from 'mammoth'
 import JSZip from 'jszip'
 import { parse, type HTMLElement, type Node as HtmlNode } from 'node-html-parser'
-import { extractText, getDocumentProxy } from 'unpdf'
+import { getDocumentProxy } from 'unpdf'
+import { readDocx } from './docx'
+import { cleanupBlocks, looksLikeFrontMatter } from './cleanup'
 import {
   isSceneBreak,
   splitIntoChapters,
@@ -274,93 +276,228 @@ export async function extractEpub(bytes: Uint8Array): Promise<{ blocks: Block[];
 // ---------------------------------------------------------------------------
 // PDF
 // ---------------------------------------------------------------------------
-/** Rebuild paragraphs from PDF page text and drop running headers, footers, and page numbers. */
-export function blocksFromPdfPages(pages: string[]): Block[] {
-  const pageLines = pages.map((p) =>
-    p
-      .replace(/\r/g, '')
-      .split('\n')
-      .map((l) => l.replace(/\s+/g, ' ').trim()),
-  )
-  // Lines that repeat on many pages (book title, author name) are headers or footers.
-  const freq = new Map<string, number>()
-  for (const lines of pageLines) for (const l of new Set(lines)) if (l && l.length < 80) freq.set(l, (freq.get(l) ?? 0) + 1)
-  const repeated = new Set([...freq].filter(([, n]) => pages.length >= 4 && n >= pages.length * 0.5).map(([l]) => l))
-
-  const lines: string[] = []
-  for (const pl of pageLines) {
-    for (const l of pl) {
-      if (repeated.has(l) || /^(page\s*)?\d{1,4}$/i.test(l)) continue
-      lines.push(l)
-    }
-    lines.push('')
-  }
-
-  const lengths = lines.filter(Boolean).map((l) => l.length).sort((a, b) => a - b)
-  const typical = lengths[Math.floor(lengths.length * 0.75)] ?? 60
-  const out: Block[] = []
-  let para: string[] = []
-  const flush = () => {
-    let text = para.join(' ')
-    text = text.replace(/(\w)- (\w)/g, '$1$2').replace(/\s+/g, ' ').trim()
-    if (text) out.push(isSceneBreak(text) ? { kind: 'break' } : { kind: 'paragraph', runs: [{ text }] })
-    para = []
-  }
-  for (let i = 0; i < lines.length; i++) {
-    const l = lines[i]
-    if (!l) {
-      // Page boundary or blank line: only end the paragraph if the sentence ended.
-      if (para.length && /[.!?"'”’)\]:]$/.test(para[para.length - 1])) flush()
-      continue
-    }
-    if (isSceneBreak(l)) {
-      flush()
-      out.push({ kind: 'break' })
-      continue
-    }
-    if (/^(chapter|prologue|epilogue|part)\b/i.test(l) && l.length < 60) {
-      flush()
-      out.push({ kind: 'paragraph', runs: [{ text: l }] })
-      continue
-    }
-    para.push(l)
-    // A short line that ends a sentence usually ends the paragraph.
-    if (l.length < typical * 0.8 && /[.!?"'”’)\]]$/.test(l)) flush()
-  }
-  flush()
-  return out
+interface PdfItem {
+  str: string
+  transform: number[]
+  width: number
+  height: number
+}
+interface PdfLine {
+  text: string
+  x0: number
+  xEnd: number
+  y: number
+  size: number
 }
 
-export async function extractPdf(bytes: Uint8Array): Promise<{ blocks: Block[]; pageCount: number; needsOcr: boolean }> {
+/** Group positioned text items into reading-order lines (top to bottom, left to right). */
+export function linesFromItems(items: PdfItem[]): PdfLine[] {
+  const cleaned = items
+    .filter((it) => it.str && it.str.trim() !== '')
+    .map((it) => ({
+      str: it.str,
+      x: it.transform[4],
+      y: it.transform[5],
+      w: it.width,
+      size: Math.abs(it.height || it.transform[3] || 10),
+    }))
+    .sort((a, b) => b.y - a.y || a.x - b.x)
+  const lines: Array<{ y: number; size: number; parts: typeof cleaned }> = []
+  for (const it of cleaned) {
+    const line = lines.find((l) => Math.abs(l.y - it.y) < Math.max(2, Math.min(l.size, it.size) * 0.5))
+    if (line) {
+      line.parts.push(it)
+      line.size = Math.max(line.size, it.size)
+    } else lines.push({ y: it.y, size: it.size, parts: [it] })
+  }
+  return lines
+    .sort((a, b) => b.y - a.y)
+    .map((l) => {
+      const parts = l.parts.sort((a, b) => a.x - b.x)
+      let text = ''
+      let end = -Infinity
+      for (const p of parts) {
+        const gap = p.x - end
+        if (text && gap > p.size * 0.15 && !/\s$/.test(text) && !/^\s/.test(p.str)) text += ' '
+        text += p.str
+        end = p.x + p.w
+      }
+      return { text: text.replace(/\s+/g, ' ').trim(), x0: parts[0].x, xEnd: end, y: l.y, size: l.size }
+    })
+    .filter((l) => l.text)
+}
+
+const mode = (vals: number[]) => {
+  const counts = new Map<number, number>()
+  for (const v of vals) counts.set(v, (counts.get(v) ?? 0) + 1)
+  return [...counts].sort((a, b) => b[1] - a[1])[0]?.[0] ?? 0
+}
+
+/**
+ * Rebuild paragraphs from positioned PDF lines. Uses font size for headings,
+ * indents and vertical gaps for paragraph breaks, and treats the first and last
+ * line of each page as possible running headers or footers for the cleanup pass.
+ */
+export function blocksFromPdfLines(pages: Array<{ lines: PdfLine[]; height: number }>): { blocks: Block[]; pageBreaks: Set<number>; dropCaps: number } {
+  const all = pages.flatMap((p) => p.lines)
+  const body = mode(all.flatMap((l) => Array(Math.min(l.text.length, 200)).fill(Math.round(l.size * 2) / 2))) || 11
+  const bodyLines = all.filter((l) => Math.abs(l.size - body) < body * 0.15)
+  const left = mode(bodyLines.map((l) => Math.round(l.x0)))
+  const right = Math.max(...bodyLines.map((l) => l.xEnd), 0)
+  const gaps: number[] = []
+  for (const p of pages)
+    for (let i = 1; i < p.lines.length; i++) {
+      const g = p.lines[i - 1].y - p.lines[i].y
+      if (g > 0 && g < body * 3) gaps.push(Math.round(g))
+    }
+  const leading = mode(gaps) || body * 1.3
+
+  const blocks: Block[] = []
+  const pageBreaks = new Set<number>()
+  let para: string[] = []
+  let dropCaps = 0
+  let pendingDropCap = ''
+  const flush = () => {
+    const text = para.join(' ').replace(/\s+/g, ' ').trim()
+    if (text) blocks.push(isSceneBreak(text) ? { kind: 'break' } : { kind: 'paragraph', runs: [{ text }] })
+    para = []
+  }
+  const append = (t: string) => {
+    if (pendingDropCap) {
+      t = pendingDropCap + t
+      pendingDropCap = ''
+    }
+    const last = para[para.length - 1]
+    if (last && /[a-z]-$/.test(last) && /^[a-z]/.test(t)) para[para.length - 1] = last.slice(0, -1) + t
+    else para.push(t)
+  }
+
+  for (const page of pages) {
+    flush()
+    pageBreaks.add(blocks.length)
+    const lines = page.lines
+    lines.forEach((l, i) => {
+      const edge = (i === 0 && l.y > page.height * 0.85) || (i === lines.length - 1 && l.y < page.height * 0.12)
+      const isFurnitureCandidate = edge && l.text.length < 90
+      if (isFurnitureCandidate && (PAGE_NO.test(l.text) || l.size <= body * 1.05)) {
+        // Emit as its own paragraph; the cleanup pass decides whether it is a header, footer or real text.
+        const saved = para
+        para = []
+        blocks.push({ kind: 'paragraph', runs: [{ text: l.text }] })
+        para = saved
+        return
+      }
+      if (/^[A-Z]$/.test(l.text) && l.size > body * 1.8) {
+        flush()
+        pendingDropCap = l.text
+        dropCaps++
+        return
+      }
+      if (l.size > body * 1.25) {
+        flush()
+        blocks.push({ kind: 'heading', level: l.size > body * 1.6 ? 1 : 2, text: l.text })
+        return
+      }
+      if (isSceneBreak(l.text)) {
+        flush()
+        blocks.push({ kind: 'break' })
+        return
+      }
+      const prev = lines[i - 1]
+      if (prev && para.length) {
+        const gap = prev.y - l.y
+        const indented = l.x0 > left + body * 0.8
+        const prevShort = prev.xEnd < right - body * 2.5 && /[.!?"'”’)\]:]$/.test(prev.text)
+        if (gap > leading * 1.5 || indented || prevShort) flush()
+      }
+      append(l.text)
+    })
+  }
+  flush()
+  return { blocks, pageBreaks, dropCaps }
+}
+
+const PAGE_NO = /^(?:page\s+)?\d{1,4}(?:\s+of\s+\d{1,4})?$/i
+
+export async function extractPdf(bytes: Uint8Array): Promise<{ blocks: Block[]; pageBreaks: Set<number>; pageCount: number; needsOcr: boolean }> {
   const pdf = await getDocumentProxy(new Uint8Array(bytes))
-  const { totalPages, text } = await extractText(pdf, { mergePages: false })
-  const chars = text.reduce((n, t) => n + t.replace(/\s/g, '').length, 0)
-  // Scanned books have pages but almost no text layer.
-  const needsOcr = totalPages > 0 && chars / totalPages < 40
-  return { blocks: needsOcr ? [] : blocksFromPdfPages(text), pageCount: totalPages, needsOcr }
+  const pages: Array<{ lines: PdfLine[]; height: number }> = []
+  let chars = 0
+  for (let n = 1; n <= pdf.numPages; n++) {
+    const page = await pdf.getPage(n)
+    const viewport = page.getViewport({ scale: 1 })
+    const content = await page.getTextContent()
+    const lines = linesFromItems(content.items as PdfItem[])
+    chars += lines.reduce((c, l) => c + l.text.replace(/\s/g, '').length, 0)
+    pages.push({ lines, height: viewport.height })
+  }
+  const needsOcr = pdf.numPages > 0 && chars / pdf.numPages < 40
+  if (needsOcr) return { blocks: [], pageBreaks: new Set(), pageCount: pdf.numPages, needsOcr }
+  const { blocks, pageBreaks } = blocksFromPdfLines(pages)
+  return { blocks, pageBreaks, pageCount: pdf.numPages, needsOcr }
 }
 
 // ---------------------------------------------------------------------------
-export async function extractManuscript(ext: ExtractionResult['format'], bytes: Uint8Array): Promise<ExtractionResult> {
+export interface ExtractOptions {
+  /** Book title, pen name and author name, used to recognize running headers and footers. */
+  knownStrings?: string[]
+}
+
+function finish(
+  format: ExtractionResult['format'],
+  title: string | null,
+  blocks: Block[],
+  opts: ExtractOptions,
+  extra: { pageBreaks?: Set<number>; dropCapIndexes?: Set<number>; pageCount?: number | null; warnings?: string[] } = {},
+): ExtractionResult {
+  const known = [...(opts.knownStrings ?? []), ...(title ? [title] : [])]
+  const { blocks: clean, report, warnings } = cleanupBlocks(blocks, {
+    knownStrings: known,
+    pageBreaks: extra.pageBreaks,
+    dropCapIndexes: extra.dropCapIndexes,
+  })
+  const chapters = splitIntoChapters(clean)
+  // Title page, copyright and "Also by" pages before the first chapter.
+  if (chapters.length > 1 && !chapters[0].detected) {
+    const text = chapters[0].scenes.map((s) => s.text).join(' ')
+    if (looksLikeFrontMatter(text) || chapters[0].wordCount < 400) chapters[0] = { ...chapters[0], title: 'Front matter', frontMatter: true }
+  }
+  const result = summarize(format, title, chapters, extra.pageCount ?? null, [...(extra.warnings ?? []), ...warnings])
+  result.cleanup = report
+  return result
+}
+
+export async function extractManuscript(ext: ExtractionResult['format'], bytes: Uint8Array, opts: ExtractOptions = {}): Promise<ExtractionResult> {
   switch (ext) {
     case 'txt':
-      return summarize('txt', null, splitIntoChapters(extractTxt(bytes)), null, [])
+      return finish('txt', null, extractTxt(bytes), opts)
     case 'md':
-      return summarize('md', null, splitIntoChapters(extractMarkdown(bytes)), null, [])
+      return finish('md', null, extractMarkdown(bytes), opts)
     case 'docx': {
+      try {
+        const { blocks, pageBreaks, dropCapIndexes } = await readDocx(bytes)
+        if (blocks.some((b) => b.kind === 'paragraph')) return finish('docx', null, blocks, opts, { pageBreaks, dropCapIndexes })
+      } catch (err) {
+        if (err instanceof Error && /300 MB/.test(err.message)) throw new ExtractionError(err.message)
+        // Fall back to the general converter below for unusual files.
+      }
       const { blocks, warnings } = await extractDocx(bytes)
-      return summarize('docx', null, splitIntoChapters(blocks), null, warnings)
+      return finish('docx', null, blocks, opts, { warnings })
     }
     case 'epub': {
       const { blocks, title, warnings } = await extractEpub(bytes)
-      return summarize('epub', title, splitIntoChapters(blocks), null, warnings)
+      return finish('epub', title, blocks, opts, { warnings })
     }
     case 'pdf': {
-      const { blocks, pageCount, needsOcr } = await extractPdf(bytes)
-      const warnings = needsOcr
-        ? ['This PDF has little or no selectable text. It looks scanned and needs OCR before its words can be read.']
-        : ['PDF layout does not store paragraphs, so paragraph breaks were reconstructed. Check the import preview.']
-      return summarize('pdf', null, needsOcr ? [] : splitIntoChapters(blocks), pageCount, warnings, needsOcr)
+      const { blocks, pageBreaks, pageCount, needsOcr } = await extractPdf(bytes)
+      if (needsOcr) {
+        return summarize('pdf', null, [], pageCount, ['This PDF has little or no selectable text. It looks scanned and needs OCR before its words can be read.'], true)
+      }
+      return finish('pdf', null, blocks, opts, {
+        pageBreaks,
+        pageCount,
+        warnings: ['PDF files do not store paragraphs, so paragraph breaks were rebuilt from the page layout. Check the import preview.'],
+      })
     }
   }
 }

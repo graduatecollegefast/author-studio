@@ -6,7 +6,7 @@ import { AlertTriangle, FileText } from 'lucide-react'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { ErrorState, Spinner } from '@/components/ui/feedback'
-import { getExtraction, importExtraction } from '@/services/manuscripts'
+import { getExtraction, importExtraction, previousImport } from '@/services/manuscripts'
 import { qk, useChapters } from '@/hooks/queries'
 import { formatNumber } from '@/lib/utils'
 import type { ManuscriptFile } from '@/types/db'
@@ -26,12 +26,15 @@ export function ImportDialog({ file, onOpenChange }: Props) {
     enabled: Boolean(file),
   })
   const existing = useChapters(file?.book_id ?? '')
+  const previous = useQuery({ queryKey: ['previous-import', file?.id], queryFn: () => previousImport(file!.id), enabled: Boolean(file) })
+  const [replace, setReplace] = React.useState(true)
   const [selected, setSelected] = React.useState<Set<number>>(new Set())
   const [busy, setBusy] = React.useState(false)
   const chapters = React.useMemo(() => extraction.data?.structure ?? [], [extraction.data])
 
   React.useEffect(() => {
-    setSelected(new Set(chapters.map((_, i) => i)))
+    // Front matter (title page, copyright) is left out unless the author chooses it.
+    setSelected(new Set(chapters.flatMap((c, i) => (c.frontMatter ? [] : [i]))))
   }, [chapters])
 
   const chosen = chapters.filter((_, i) => selected.has(i))
@@ -41,12 +44,18 @@ export function ImportDialog({ file, onOpenChange }: Props) {
     if (!file || !chosen.length) return
     setBusy(true)
     try {
-      const n = await importExtraction(file.id, chosen)
-      toast.success(`Imported ${n} ${n === 1 ? 'chapter' : 'chapters'}`)
+      const prev = previous.data?.total ?? 0
+      const r = await importExtraction(file.id, chosen, prev > 0 && replace)
+      toast.success(
+        `Imported ${r.imported} ${r.imported === 1 ? 'chapter' : 'chapters'}` +
+          (r.replaced ? `, replaced ${r.replaced} from the earlier import` : '') +
+          (r.kept ? `. Kept ${r.kept} you had edited.` : ''),
+      )
       qc.invalidateQueries({ queryKey: qk.chapters(file.book_id) })
       qc.invalidateQueries({ queryKey: qk.scenes(file.book_id) })
       qc.invalidateQueries({ queryKey: qk.book(file.book_id) })
       qc.invalidateQueries({ queryKey: qk.manuscripts(file.book_id) })
+      qc.invalidateQueries({ queryKey: ['previous-import', file.id] })
       qc.invalidateQueries({ queryKey: qk.books })
       onOpenChange(false)
       navigate(`/books/${file.book_id}?tab=chapters`)
@@ -97,7 +106,37 @@ export function ImportDialog({ file, onOpenChange }: Props) {
               </ul>
             )}
 
-            {(existing.data?.length ?? 0) > 0 && (
+            {extraction.data.cleanup && (
+              <p className="rounded-lg bg-progress-soft px-3 py-2 text-sm text-progress-text" data-testid="cleanup-summary">
+                Cleaned up print layout:{' '}
+                {[
+                  extraction.data.cleanup.runningHeadsRemoved + extraction.data.cleanup.pageNumbersRemoved > 0 &&
+                    `removed ${extraction.data.cleanup.runningHeadsRemoved} running headers and ${extraction.data.cleanup.pageNumbersRemoved} page numbers`,
+                  extraction.data.cleanup.paragraphsRejoined > 0 && `rejoined ${extraction.data.cleanup.paragraphsRejoined} paragraphs split across pages`,
+                  extraction.data.cleanup.wordsRejoined > 0 && `repaired ${extraction.data.cleanup.wordsRejoined} split words`,
+                  extraction.data.cleanup.dropCapsMerged > 0 && `restored ${extraction.data.cleanup.dropCapsMerged} decorative first letters`,
+                ]
+                  .filter(Boolean)
+                  .join(', ') || 'nothing needed fixing'}
+                .
+              </p>
+            )}
+
+            {(previous.data?.total ?? 0) > 0 && (
+              <label className="flex gap-3 rounded-lg border border-control p-3 text-sm">
+                <input type="checkbox" className="mt-0.5 size-4 accent-[var(--action)]" checked={replace} onChange={(e) => setReplace(e.target.checked)} />
+                <span>
+                  <span className="font-semibold text-fg">Replace the {previous.data!.total} chapters imported from this file earlier</span>
+                  <span className="block text-fg-muted">
+                    {previous.data!.edited
+                      ? `${previous.data!.edited} of them ${previous.data!.edited === 1 ? 'has' : 'have'} been edited since, so ${previous.data!.edited === 1 ? 'it stays' : 'they stay'}. The others are removed.`
+                      : 'None of them have been edited since importing.'}
+                  </span>
+                </span>
+              </label>
+            )}
+
+            {(existing.data?.length ?? 0) > 0 && !(replace && (previous.data?.total ?? 0) > 0) && (
               <p className="text-sm text-fg-muted">
                 This book already has {existing.data!.length} {existing.data!.length === 1 ? 'chapter' : 'chapters'}. Imported chapters are added
                 after them; nothing existing is changed.
@@ -134,7 +173,10 @@ export function ImportDialog({ file, onOpenChange }: Props) {
                         />
                         <span className="min-w-0 flex-1">
                           <span className="flex items-baseline justify-between gap-3">
-                            <span className="truncate font-serif font-semibold text-fg">{c.title}</span>
+                            <span className="truncate font-serif font-semibold text-fg">
+                              {c.title}
+                              {c.frontMatter && <span className="ml-2 font-sans text-xs font-normal text-fg-muted">(title page, copyright: not imported unless selected)</span>}
+                            </span>
                             <span className="shrink-0 text-xs text-fg-muted">
                               {formatNumber(c.wordCount)} words · {c.scenes.length} {c.scenes.length === 1 ? 'scene' : 'scenes'}
                             </span>

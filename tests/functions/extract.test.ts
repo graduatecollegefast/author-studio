@@ -1,7 +1,8 @@
 // @vitest-environment node
-import { extractManuscript, parseInlineMarkdown, blocksFromPdfPages } from '../../netlify/functions/_shared/extract'
+import { extractManuscript, parseInlineMarkdown } from '../../netlify/functions/_shared/extract'
+import { classifyFurniture, rejoinSplitWords } from '../../netlify/functions/_shared/cleanup'
 import { blocksToTiptap, buildChunks, splitIntoChapters, looksLikeChapterHeading } from '../../src/lib/documents/structure'
-import { makeBlankPdf, makeDocx, makeEpub, makePdf } from './fixtures'
+import { makeBlankPdf, makeConvertedDocx, makeDocx, makeEpub, makePdf, makeTypesetPdf } from './fixtures'
 
 const enc = (s: string) => new TextEncoder().encode(s)
 
@@ -139,10 +140,6 @@ describe('PDF', () => {
     expect(r.warnings[0]).toMatch(/OCR/)
   })
 
-  it('joins hyphenated line breaks', () => {
-    const blocks = blocksFromPdfPages(['She was in-\ncredibly tired that night.'])
-    expect(blocks[0]).toEqual({ kind: 'paragraph', runs: [{ text: 'She was incredibly tired that night.' }] })
-  })
 })
 
 describe('import helpers', () => {
@@ -180,5 +177,83 @@ describe('import helpers', () => {
     expect(chunks.find((c) => c.content.startsWith('Chapter 2'))?.chapterLabel).toBe('Chapter 2')
     // Offsets are contiguous apart from skipped whitespace.
     for (let i = 1; i < chunks.length; i++) expect(chunks[i].charStart).toBeGreaterThanOrEqual(chunks[i - 1].charEnd)
+  })
+})
+
+describe('print-layout cleanup', () => {
+  const known = ['Soror Love', 'Shaun J. Phree']
+  const allText = (r: Awaited<ReturnType<typeof extractManuscript>>) =>
+    r.chapters.filter((c) => !c.frontMatter).flatMap((c) => c.scenes.map((s) => s.text)).join('\n\n')
+
+  it('cleans a Word file converted from a print layout', async () => {
+    const r = await extractManuscript('docx', await makeConvertedDocx(), { knownStrings: known })
+    const text = allText(r)
+
+    // Running headers, footers and page numbers are gone.
+    expect(text).not.toMatch(/SHAUN J\. PHREE|SOROR LOVE \d|^\d+$/m)
+    expect(text).not.toContain('HEADER PART TEXT')
+    expect(r.cleanup?.runningHeadsRemoved).toBe(5)
+    expect(r.cleanup?.pageNumbersRemoved).toBe(1)
+
+    // Drop cap and its text-box first line rejoin the paragraph, in order, once.
+    expect(text).toContain('People were trying to find their way to their rooms.')
+    expect(text.match(/eople were/g)).toHaveLength(1)
+
+    // Paragraph split by a page is whole again, and split words are repaired.
+    expect(text).toContain('did not bother to look up at Lauren; she continued to swipe through her phone.')
+    expect(text).toContain('Lauren moved swiftly through the room.')
+    expect(text).toContain('catching the attention of the clerk')
+    expect(text).toContain('Nobody mentioned the incidents from last year. It was a part of the past.')
+
+    // Table text is kept.
+    expect(text).toContain('A letter was taped inside the drawer.')
+
+    // Title page and copyright never become a story chapter.
+    expect(text).not.toMatch(/Copyright|All rights reserved|Also by/)
+    expect(r.chapters.filter((c) => !c.frontMatter).map((c) => c.title)).toEqual(['Chapter 1', 'Chapter 2'])
+  })
+
+  it('flags longer front matter instead of importing it as a chapter', async () => {
+    const lines = ['Copyright © 2024 by Shaun J. Phree', 'All rights reserved. ' + 'No part of this book may be reproduced. '.repeat(30), 'Also by Shaun J. Phree']
+    const txt = [...lines, 'Chapter 1', 'Story begins here.', 'Chapter 2', 'It continues.'].join('\n\n')
+    const r = await extractManuscript('txt', new TextEncoder().encode(txt), { knownStrings: known })
+    expect(r.chapters[0]).toMatchObject({ title: 'Front matter', frontMatter: true })
+    expect(r.chapters.slice(1).map((c) => c.title)).toEqual(['Chapter 1', 'Chapter 2'])
+  })
+
+  it('reads a typeset PDF in order and removes alternating headers and page numbers', async () => {
+    const r = await extractManuscript('pdf', await makeTypesetPdf(), { knownStrings: known })
+    const text = allText(r)
+    expect(r.chapters.map((c) => c.title)).toEqual(['Chapter 1'])
+    expect(text).not.toMatch(/SHAUN|SOROR LOVE|^\d+$/m)
+    expect(text).toContain('People were trying to find their way to their rooms.')
+    expect(text).toContain('a clerk looked up with polite interest and a tired smile.')
+    expect(text).toContain('did not bother to look up at Lauren; she kept swiping through her phone.')
+    expect(text).toContain('Lauren waited for a long, quiet moment before she spoke again, and the whole lobby turned to listen.')
+    const paras = r.chapters[0].scenes[0].blocks.length
+    expect(paras).toBe(5)
+  })
+
+  it('recognizes furniture without touching story lines', () => {
+    const counts = new Map([['soror love', 30], ['shaun j phree', 30]])
+    const k = ['soror love', 'shaun j phree']
+    expect(classifyFurniture('SOROR LOVE 3', k, counts)).toBe('running-head')
+    expect(classifyFurniture('2 SHAUN J. PHREE', k, counts)).toBe('running-head')
+    expect(classifyFurniture('214', k, counts)).toBe('page-number')
+    expect(classifyFurniture('Page 7 of 300', k, counts)).toBe('page-number')
+    expect(classifyFurniture('“Soror love is real,” she said.', k, counts)).toBeNull()
+    expect(classifyFurniture('Chapter 3', k, counts)).toBeNull()
+    expect(classifyFurniture('She was 21.', k, counts)).toBeNull()
+  })
+
+  it('rejoins split words but leaves real word pairs alone', () => {
+    const doc = new Map([['janelle', 12]])
+    const fix = (t: string) => rejoinSplitWords(t, doc).text
+    expect(fix('the inci dents and the at tention')).toBe('the incidents and the attention')
+    expect(fix('she moved swift ly, con sequences, pa per, annoy ance')).toBe('she moved swiftly, consequences, paper, annoyance')
+    expect(fix('Jan elle laughed')).toBe('Janelle laughed')
+    expect(fix('a part of it, any one of them, in to the room')).toBe('a part of it, any one of them, in to the room')
+    expect(fix('the red car and the blue sky')).toBe('the red car and the blue sky')
+    expect(fix('soft\u00adware')).toBe('software')
   })
 })

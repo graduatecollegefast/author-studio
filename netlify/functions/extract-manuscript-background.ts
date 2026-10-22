@@ -59,7 +59,15 @@ export async function runExtraction(db: SupabaseClient, userId: string, fileId: 
     const bytes = new Uint8Array(await blob.arrayBuffer())
     await step(1)
 
-    const result = await extractManuscript(file.file_ext, bytes)
+    // Title, pen name and author name help recognize running headers and footers.
+    const [{ data: book }, { data: profile }] = await Promise.all([
+      db.from('books').select('title, subtitle, pen_name').eq('id', file.book_id).maybeSingle(),
+      db.from('profiles').select('display_name, pen_names').eq('id', userId).maybeSingle(),
+    ])
+    const knownStrings = [book?.title, book?.subtitle, book?.pen_name, profile?.display_name, ...(profile?.pen_names ?? [])].filter(
+      (s): s is string => typeof s === 'string' && s.trim().length >= 3,
+    )
+    const result = await extractManuscript(file.file_ext, bytes, { knownStrings })
     await step(2)
 
     if (result.needsOcr) {
@@ -95,6 +103,7 @@ export async function runExtraction(db: SupabaseClient, userId: string, fileId: 
       structure: result.chapters,
       warnings: result.warnings,
       needs_ocr: false,
+      cleanup: result.cleanup ?? null,
     })
     if (exError) throw new Error(`save extraction: ${exError.message}`)
 
@@ -125,7 +134,7 @@ export async function runExtraction(db: SupabaseClient, userId: string, fileId: 
           status: 'completed',
           completed_steps: 3,
           completed_at: new Date().toISOString(),
-          output: { chapters: result.chapters.length, words: result.wordCount, chunks: chunks.length },
+          output: { chapters: result.chapters.length, words: result.wordCount, chunks: chunks.length, cleanup: result.cleanup },
         })
         .eq('id', taskId)
     return { status: 'completed', chunks: chunks.length }

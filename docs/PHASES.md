@@ -22,6 +22,8 @@ Palette, semantic color roles, three writing modes, typography controls, daily g
 - EPUB: reads the spine, skips navigation, scripts and styles, refuses archives that expand past 300 MB.
 - Searchable `document_chunks` (about 6,000 characters each, on paragraph boundaries) with exact character offsets and chapter labels for cited analysis.
 - Preview and import: choose chapters, import after existing chapters as editable scenes. Imports do not count toward daily word goals.
+- Print-layout cleanup (books exported from a PDF or print file): running headers and footers with the title or author name, page numbers, paragraphs split across pages, line-end hyphenation turned into spaces, drop caps whose first line sits in a text box. The Word reader reads the document directly, including text boxes and tables, and never reads header or footer parts. Title page, copyright and "Also by" pages are flagged as front matter and not imported unless chosen.
+- Re-importing a file can replace the chapters it imported before; chapters edited since are always kept.
 
 ### 2B: AI analysis (next, needs an AI provider key)
 Extraction for DOCX/PDF/EPUB/TXT/MD with OCR warning for scanned PDFs, chunking into `document_chunks`, resumable background analysis jobs (`ai_tasks` with idempotency keys), Claude/OpenAI adapters with usage and spend tracking, discoveries with evidence into `canon_facts`/`fact_sources`, review and bulk approval, Character Bible and World Bible screens.
