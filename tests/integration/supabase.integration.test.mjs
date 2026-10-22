@@ -192,6 +192,28 @@ test('scenes can be added and reordered; the last scene cannot be deleted', asyn
   assert.match(last.error?.message ?? '', /LAST_SCENE/)
 })
 
+test('daily word totals follow edits in the author time zone and ignore direct inserts', async () => {
+  await users.a.client.from('profiles').update({ preferences: { timezone: 'Pacific/Kiritimati' } }).eq('id', users.a.id)
+  const { data: today } = await users.a.client.rpc('author_today', { p_owner: users.a.id })
+  const book = await users.a.client.from('books').insert({ title: 'Stats Book' }).select('id').single()
+  const chapter = await users.a.client.rpc('create_chapter', { p_book_id: book.data.id })
+  const { data: sc } = await users.a.client.from('scenes').select('id, revision').eq('chapter_id', chapter.data).single()
+  const before = (await users.a.client.from('writing_daily_stats').select('*').eq('day', today).maybeSingle()).data
+  const base = { added: before?.words_added ?? 0, removed: before?.words_removed ?? 0 }
+  await users.a.client.rpc('save_scene', { p_scene_id: sc.id, p_content: doc('one two three four five'), p_content_text: 'one two three four five', p_expected_revision: sc.revision })
+  await users.a.client.rpc('save_scene', { p_scene_id: sc.id, p_content: doc('one two three'), p_content_text: 'one two three', p_expected_revision: sc.revision + 1 })
+  // A directly inserted scene (as an import does) is not counted as writing.
+  await users.a.client.from('scenes').insert({ book_id: book.data.id, chapter_id: chapter.data, title: 'Imported', position: 1, content: doc('a b c d e f g'), content_text: 'a b c d e f g', word_count: 7 })
+  const { data: stat } = await users.a.client.from('writing_daily_stats').select('*').eq('day', today).single()
+  assert.equal(stat.words_added - base.added, 5)
+  assert.equal(stat.words_removed - base.removed, 2)
+  const kiritimatiToday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Pacific/Kiritimati' }).format(new Date())
+  assert.equal(today, kiritimatiToday)
+  const other = await users.b.client.from('writing_daily_stats').select('*')
+  assert.deepEqual(other.data, [])
+  await users.a.client.from('books').delete().eq('id', book.data.id)
+})
+
 test('a scene cannot point at a chapter from another book', async () => {
   const other = await users.a.client.from('books').insert({ title: 'Second Book' }).select('id').single()
   const { error } = await users.a.client.from('scenes').insert({ book_id: other.data.id, chapter_id: chapterId, title: 'Wrong' })

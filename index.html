@@ -4,13 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="robots" content="noindex, nofollow" />
-    <meta name="theme-color" content="#0d1324" />
+    <meta name="theme-color" content="#172638" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Author Studio</title>
     <script>
       try {
         var p = JSON.parse(localStorage.getItem('author-studio:preferences') || '{}')
-        if (p.theme === 'light') document.documentElement.classList.remove('dark')
+        if (p.theme === 'light') {
+          document.documentElement.classList.remove('dark')
+          document.documentElement.style.background = '#EEF1F3'
+        } else {
+          document.documentElement.style.background = '#172638'
+        }
       } catch (e) {}
     </script>
   </head>

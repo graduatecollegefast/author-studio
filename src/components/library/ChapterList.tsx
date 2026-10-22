@@ -94,7 +94,7 @@ export function ChapterList({ bookId }: { bookId: string }) {
                   </form>
                 ) : (
                   <>
-                    <Link to={`/books/${bookId}/write?chapter=${c.id}`} className="font-serif text-lg font-semibold text-fg hover:text-plum">
+                    <Link to={`/books/${bookId}/write?chapter=${c.id}`} className="font-serif text-lg font-semibold text-fg hover:link">
                       {c.title}
                     </Link>
                     <div className="text-xs text-fg-muted">{formatNumber(c.word_count)} words</div>

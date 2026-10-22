@@ -14,13 +14,16 @@ export function CardHeader({ title, action, className }: { title: React.ReactNod
   )
 }
 
-export function Badge({ className, tone = 'neutral', ...props }: React.HTMLAttributes<HTMLSpanElement> & { tone?: 'neutral' | 'plum' | 'amber' | 'danger' | 'ok' }) {
-  const tones = {
+export type BadgeTone = 'neutral' | 'info' | 'ai' | 'progress' | 'alert'
+
+/** Status chip. Tone carries meaning: ai = AI feature, progress = done, alert = needs attention. */
+export function Badge({ className, tone = 'neutral', ...props }: React.HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone }) {
+  const tones: Record<BadgeTone, string> = {
     neutral: 'bg-panel-2 text-fg-muted border-line',
-    plum: 'bg-plum-soft text-plum-strong border-transparent',
-    amber: 'bg-amber-soft text-amber border-transparent',
-    danger: 'bg-danger-soft text-danger border-transparent',
-    ok: 'bg-panel-2 text-ok border-line',
+    info: 'bg-selected text-fg border-transparent',
+    ai: 'bg-ai-soft text-ai-text border-transparent',
+    progress: 'bg-progress-soft text-progress-text border-transparent',
+    alert: 'bg-alert-soft text-alert-text border-transparent',
   }
   return (
     <span

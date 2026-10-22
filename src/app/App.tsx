@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Link, Route, Routes } from 'react-router'
+import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { AuthProvider } from '@/contexts/AuthContext'
@@ -26,23 +26,42 @@ const queryClient = new QueryClient({
 function NotFound() {
   return (
     <PageBody>
-      <EmptyState title="Page not found" action={<Link className="text-plum underline" to="/">Go to the dashboard</Link>}>
+      <EmptyState title="Page not found" action={<Link className="link underline" to="/">Go to the dashboard</Link>}>
         This page does not exist.
       </EmptyState>
     </PageBody>
   )
 }
 
+/** Calm, palette-matched notifications. Hidden entirely while writing in Deep Focus. */
 function ThemedToaster() {
   const { prefs } = usePreferences()
-  return <Toaster theme={prefs.theme} position="bottom-right" richColors closeButton />
+  const { pathname } = useLocation()
+  if (prefs.writingMode === 'focus' && /\/write$/.test(pathname)) return null
+  return (
+    <Toaster
+      theme={prefs.theme}
+      position="bottom-right"
+      closeButton
+      toastOptions={{
+        unstyled: false,
+        classNames: {
+          toast: '!bg-panel !text-fg !border !border-line !font-sans !shadow-lg',
+          description: '!text-fg-muted',
+          success: '[&_[data-icon]]:!text-progress-text',
+          error: '!border-alert [&_[data-icon]]:!text-alert-text',
+          closeButton: '!bg-panel !text-fg !border-control',
+        },
+      }}
+    />
+  )
 }
 
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <PreferencesProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <PreferencesProvider>
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
@@ -73,10 +92,10 @@ export function App() {
                 <Route path="*" element={<NotFound />} />
               </Route>
             </Routes>
+            <ThemedToaster />
           </BrowserRouter>
-          <ThemedToaster />
-        </AuthProvider>
-      </PreferencesProvider>
+        </PreferencesProvider>
+      </AuthProvider>
     </QueryClientProvider>
   )
 }

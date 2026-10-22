@@ -15,12 +15,12 @@ function AuthFrame({ title, subtitle, children }: { title: string; subtitle?: st
     <div className="grid min-h-dvh place-items-center bg-ink px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-3">
-          <div className="grid size-10 place-items-center rounded-xl bg-plum text-white dark:text-ink">
+          <div className="grid size-10 place-items-center rounded-xl bg-action text-action-fg">
             <BookOpen className="size-5" aria-hidden />
           </div>
           <div>
             <div className="font-serif text-xl font-semibold">Author Studio</div>
-            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber">Private workspace</div>
+            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-muted">Private workspace</div>
           </div>
         </div>
         <div className="rounded-[var(--radius-panel)] border border-line bg-panel p-6 shadow-sm">
@@ -29,7 +29,7 @@ function AuthFrame({ title, subtitle, children }: { title: string; subtitle?: st
           <div className="mt-6">{children}</div>
         </div>
         {!supabaseConfigured && (
-          <p role="alert" className="mt-4 rounded-lg bg-danger-soft p-3 text-xs text-danger">
+          <p role="alert" className="mt-4 rounded-lg bg-alert-soft p-3 text-xs text-alert-text">
             Supabase is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.
           </p>
         )}
@@ -41,7 +41,7 @@ function AuthFrame({ title, subtitle, children }: { title: string; subtitle?: st
 function FormError({ message }: { message: string | null }) {
   if (!message) return null
   return (
-    <p role="alert" className="rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
+    <p role="alert" className="rounded-lg bg-alert-soft px-3 py-2 text-sm text-alert-text">
       {message}
     </p>
   )
@@ -108,17 +108,17 @@ export function LoginPage() {
           />
         </Field>
         <FormError message={error} />
-        {notice && <p className="rounded-lg bg-plum-soft px-3 py-2 text-sm text-plum-strong">{notice}</p>}
+        {notice && <p className="rounded-lg bg-selected px-3 py-2 text-sm text-fg">{notice}</p>}
         <Button type="submit" className="w-full" disabled={busy}>
           {busy ? 'Please wait...' : mode === 'signin' ? 'Sign in' : 'Create account'}
         </Button>
       </form>
       <div className="mt-5 flex items-center justify-between text-sm">
-        <Link to="/forgot-password" className="text-plum hover:underline">
+        <Link to="/forgot-password" className="link">
           Forgot password?
         </Link>
         {allowSignup && (
-          <button type="button" className="text-plum hover:underline" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}>
+          <button type="button" className="link" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}>
             {mode === 'signin' ? 'Create account' : 'I have an account'}
           </button>
         )}
@@ -164,7 +164,7 @@ export function ForgotPasswordPage() {
           </Button>
         </form>
       )}
-      <Link to="/login" className="mt-5 inline-block text-sm text-plum hover:underline">
+      <Link to="/login" className="mt-5 inline-block text-sm link">
         Back to sign in
       </Link>
     </AuthFrame>
@@ -183,7 +183,7 @@ export function ResetPasswordPage() {
   if (!session) {
     return (
       <AuthFrame title="Link expired" subtitle="This reset link is invalid or has expired.">
-        <Link to="/forgot-password" className="text-sm text-plum hover:underline">
+        <Link to="/forgot-password" className="text-sm link">
           Request a new link
         </Link>
       </AuthFrame>

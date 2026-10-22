@@ -154,7 +154,7 @@ export function Outline({ bookId, chapters, scenes, activeSceneId, onSelect }: P
                           aria-current={scene.id === activeSceneId ? 'page' : undefined}
                           className={cn(
                             'flex min-w-0 flex-1 items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
-                            scene.id === activeSceneId ? 'bg-plum-soft font-semibold text-plum-strong' : 'text-fg hover:bg-panel-2',
+                            scene.id === activeSceneId ? 'bg-selected font-semibold text-fg' : 'text-fg hover:bg-panel-2',
                           )}
                         >
                           <span className="truncate">{scene.title}</span>

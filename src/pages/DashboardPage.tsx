@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Badge, Card, CardHeader } from '@/components/ui/card'
 import { ErrorState, Spinner } from '@/components/ui/feedback'
 import { BookCover } from '@/components/library/BookCover'
-import { useBooks, useDashboardStats, useLastEdited, useRecentUploads } from '@/hooks/queries'
+import { useBooks, useDailyStats, useDashboardStats, useLastEdited, useRecentUploads } from '@/hooks/queries'
+import { usePreferences } from '@/contexts/PreferencesContext'
+import { goalProgress, goalStreak, localDateString, netWords } from '@/services/progress'
 import { useAuth } from '@/contexts/AuthContext'
 import { formatBytes, formatNumber, formatRelative, labelize } from '@/lib/utils'
 
@@ -17,6 +19,59 @@ function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: 
       <div className="mt-1 font-serif text-3xl font-semibold text-fg">{value}</div>
       {hint && <div className="mt-0.5 text-xs text-fg-muted">{hint}</div>}
     </div>
+  )
+}
+
+function TodayCard() {
+  const { prefs } = usePreferences()
+  const daily = useDailyStats()
+  const today = localDateString()
+  const stats = daily.data ?? []
+  const words = netWords(stats.find((d) => d.day === today))
+  const goal = prefs.dailyWordGoal
+  const progress = goalProgress(words, goal)
+  const streak = goalStreak(stats, goal)
+  const week = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date()
+    d.setDate(d.getDate() - (6 - i))
+    const key = localDateString(d)
+    return { key, label: d.toLocaleDateString(undefined, { weekday: 'narrow' }), words: netWords(stats.find((s) => s.day === key)) }
+  })
+  const max = Math.max(goal ?? 0, ...week.map((w) => w.words), 1)
+
+  return (
+    <Card>
+      <CardHeader title="Today's writing" action={<Link to="/settings" className="link text-xs">{goal ? 'Change goal' : 'Set a daily goal'}</Link>} />
+      <div className="px-5 pb-5">
+        <div className="flex items-baseline gap-2">
+          <span className="font-serif text-3xl font-semibold" data-testid="today-words">{formatNumber(words)}</span>
+          <span className="text-sm text-fg-muted">{goal ? `of ${formatNumber(goal)} words` : 'words today'}</span>
+        </div>
+        {progress && (
+          <>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-panel-2" role="progressbar" aria-label="Daily word goal" aria-valuenow={progress.pct} aria-valuemin={0} aria-valuemax={100}>
+              <div className="h-full rounded-full bg-progress" style={{ width: `${progress.pct}%` }} />
+            </div>
+            <p className="mt-2 text-xs text-progress-text">
+              {progress.met ? 'Goal reached today.' : `${formatNumber(goal! - words)} words to go.`}
+              {streak > 1 ? ` ${streak}-day streak.` : ''}
+            </p>
+          </>
+        )}
+        <div className="mt-4 flex h-16 items-end gap-1.5" aria-label="Words written over the last 7 days" role="img">
+          {week.map((w) => (
+            <div key={w.key} className="flex flex-1 flex-col items-center gap-1">
+              <div
+                className={goal && w.words >= goal ? 'w-full rounded-sm bg-progress' : 'w-full rounded-sm bg-control'}
+                style={{ height: `${Math.max(2, Math.round((w.words / max) * 44))}px` }}
+                title={`${w.key}: ${formatNumber(w.words)} words`}
+              />
+              <span className="text-[10px] text-fg-muted">{w.label}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Card>
   )
 }
 
@@ -59,11 +114,12 @@ export function DashboardPage() {
         }
       />
 
+      <div className="mb-6 grid gap-6 lg:grid-cols-3">
       {/* Continue writing */}
-      <Card className="mb-6 overflow-hidden">
-        <div className="flex flex-col gap-4 bg-gradient-to-r from-plum-soft to-transparent p-6 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="overflow-hidden lg:col-span-2">
+        <div className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber">Continue writing</div>
+            <div className="text-xs font-bold uppercase tracking-[0.16em] text-fg-muted">Continue writing</div>
             {last.isLoading ? (
               <Spinner className="mt-2" />
             ) : lastScene ? (
@@ -87,6 +143,9 @@ export function DashboardPage() {
         </div>
       </Card>
 
+      <TodayCard />
+      </div>
+
       {/* Stats */}
       {stats.error ? (
         <ErrorState error={stats.error} onRetry={() => void stats.refetch()} />
@@ -105,7 +164,7 @@ export function DashboardPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <Card className="lg:col-span-2">
-          <CardHeader title="Active manuscripts" action={<Link to="/library?status=drafting" className="text-xs font-semibold text-plum hover:underline">View all</Link>} />
+          <CardHeader title="Active manuscripts" action={<Link to="/library?status=drafting" className="text-xs font-semibold link">View all</Link>} />
           <div className="px-5 pb-5">
             {books.isLoading ? (
               <Spinner />
@@ -123,7 +182,7 @@ export function DashboardPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="truncate font-serif font-semibold">{b.title}</div>
-                          <Badge tone="plum" className="mt-1">
+                          <Badge tone="info" className="mt-1">
                             {labelize(b.writing_status)}
                           </Badge>
                           <div className="mt-2 text-xs text-fg-muted">
@@ -131,7 +190,7 @@ export function DashboardPage() {
                           </div>
                           {pct !== null && (
                             <div className="mt-1 h-1 overflow-hidden rounded-full bg-panel-2">
-                              <div className="h-full bg-amber" style={{ width: `${pct}%` }} />
+                              <div className="h-full bg-progress" style={{ width: `${pct}%` }} />
                             </div>
                           )}
                         </div>
@@ -180,14 +239,14 @@ export function DashboardPage() {
               <ul className="divide-y divide-line">
                 {uploads.data.map((u) => (
                   <li key={u.id}>
-                    <Link to={`/books/${u.book_id}?tab=files`} className="flex items-center gap-3 py-2.5 text-sm hover:text-plum">
+                    <Link to={`/books/${u.book_id}?tab=files`} className="flex items-center gap-3 py-2.5 text-sm hover:link">
                       <FileText className="size-4 text-fg-faint" aria-hidden />
                       <span className="min-w-0 flex-1 truncate">
                         {u.original_name}
                         <span className="text-fg-faint"> · {u.books?.title}</span>
                       </span>
                       <span className="hidden text-xs text-fg-faint sm:inline">{formatBytes(u.size_bytes)}</span>
-                      <Badge tone={u.upload_status === 'validated' ? 'ok' : u.upload_status === 'rejected' || u.upload_status === 'failed' ? 'danger' : 'amber'}>
+                      <Badge tone={u.upload_status === 'validated' ? 'progress' : u.upload_status === 'rejected' || u.upload_status === 'failed' ? 'alert' : 'neutral'}>
                         {labelize(u.upload_status)}
                       </Badge>
                     </Link>
@@ -200,7 +259,7 @@ export function DashboardPage() {
 
         <Card>
           <CardHeader title="Story intelligence" />
-          <dl className="space-y-3 px-5 pb-5 text-sm">
+          <dl className="space-y-3 px-5 pb-3 text-sm">
             <div className="flex justify-between">
               <dt className="text-fg-muted">AI analysis running</dt>
               <dd className="font-semibold">{stats.data?.runningAiTasks ?? '...'}</dd>
@@ -213,8 +272,8 @@ export function DashboardPage() {
               <dt className="text-fg-muted">Unresolved continuity warnings</dt>
               <dd className="font-semibold">{stats.data?.openContinuityWarnings ?? '...'}</dd>
             </div>
-            <p className="pt-1 text-xs text-fg-faint">Analysis, questions, and continuity checks start in Phases 2 and 3.</p>
           </dl>
+          <p className="px-5 pb-5 text-xs text-fg-faint">Analysis, questions, and continuity checks start in Phases 2 and 3.</p>
         </Card>
       </div>
     </PageBody>

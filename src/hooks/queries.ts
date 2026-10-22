@@ -3,6 +3,7 @@ import { getBook, listBooks } from '@/services/books'
 import { listManuscripts, listRecentUploads } from '@/services/manuscripts'
 import { lastEditedScene, listChapters, listSceneMeta } from '@/services/chapters'
 import { getDashboardStats } from '@/services/dashboard'
+import { getDailyStats } from '@/services/progress'
 
 export const qk = {
   books: ['books'] as const,
@@ -15,6 +16,7 @@ export const qk = {
   versions: (sceneId: string) => ['versions', sceneId] as const,
   dashboard: ['dashboard'] as const,
   lastEdited: ['last-edited'] as const,
+  daily: ['daily-stats'] as const,
 }
 
 export const useBooks = () => useQuery({ queryKey: qk.books, queryFn: listBooks })
@@ -26,3 +28,4 @@ export const useChapters = (bookId: string) => useQuery({ queryKey: qk.chapters(
 export const useSceneMeta = (bookId: string) => useQuery({ queryKey: qk.scenes(bookId), queryFn: () => listSceneMeta(bookId) })
 export const useDashboardStats = () => useQuery({ queryKey: qk.dashboard, queryFn: getDashboardStats })
 export const useLastEdited = () => useQuery({ queryKey: qk.lastEdited, queryFn: lastEditedScene })
+export const useDailyStats = () => useQuery({ queryKey: qk.daily, queryFn: () => getDailyStats(30) })

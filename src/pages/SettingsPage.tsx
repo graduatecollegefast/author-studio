@@ -11,6 +11,118 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePreferences } from '@/contexts/PreferencesContext'
 import { throwIfError } from '@/services/errors'
 import type { Profile } from '@/types/db'
+import { modes, type WritingMode } from '@/styles/tokens'
+import { PAGE_WIDTHS } from '@/contexts/PreferencesContext'
+import { cn } from '@/lib/utils'
+
+function WritingPreferences() {
+  const { prefs, setPrefs, syncState } = usePreferences()
+  const [goal, setGoal] = React.useState(prefs.dailyWordGoal ? String(prefs.dailyWordGoal) : '')
+  const [goalError, setGoalError] = React.useState<string | null>(null)
+  React.useEffect(() => setGoal(prefs.dailyWordGoal ? String(prefs.dailyWordGoal) : ''), [prefs.dailyWordGoal])
+
+  function saveGoal() {
+    const v = goal.replace(/,/g, '').trim()
+    if (v === '') {
+      setGoalError(null)
+      return setPrefs({ dailyWordGoal: null })
+    }
+    const n = Number(v)
+    if (!Number.isInteger(n) || n < 10 || n > 50000) return setGoalError('Enter a whole number from 10 to 50,000, or leave it empty.')
+    setGoalError(null)
+    setPrefs({ dailyWordGoal: n })
+  }
+
+  return (
+    <Card>
+      <CardHeader
+        title="Writing"
+        action={
+          <span className="text-xs text-fg-muted" role="status">
+            {syncState === 'saving' ? 'Saving...' : syncState === 'error' ? 'Could not save' : syncState === 'saved' ? 'Saved to your account' : ''}
+          </span>
+        }
+      />
+      <div className="space-y-6 px-5 pb-5">
+        <fieldset>
+          <legend className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-muted">Writing mode</legend>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {(Object.keys(modes) as WritingMode[]).map((m) => (
+              <label
+                key={m}
+                className={cn(
+                  'cursor-pointer rounded-lg border p-3 text-sm',
+                  prefs.writingMode === m ? 'border-fg bg-selected' : 'border-control hover:bg-panel-2',
+                )}
+              >
+                <input
+                  type="radio"
+                  name="writing-mode"
+                  value={m}
+                  checked={prefs.writingMode === m}
+                  onChange={() => setPrefs({ writingMode: m })}
+                  className="sr-only"
+                />
+                <span className="mb-2 flex h-10 overflow-hidden rounded-md border border-line" aria-hidden>
+                  <span className="w-1/4" style={{ background: modes[m].surround }} />
+                  <span className="flex-1" style={{ background: modes[m].paper }}>
+                    <span className="mx-auto mt-3 block h-1 w-2/3 rounded" style={{ background: modes[m].paperFg }} />
+                    <span className="mx-auto mt-1.5 block h-1 w-1/2 rounded" style={{ background: modes[m].accentOnPaper }} />
+                  </span>
+                  <span className="w-1/4" style={{ background: modes[m].surround }} />
+                </span>
+                <span className="block font-semibold text-fg">{modes[m].label}</span>
+                <span className="mt-0.5 block text-xs text-fg-muted">{modes[m].description}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <div>
+            <div className="mb-1 flex justify-between text-xs">
+              <label htmlFor="pref-size" className="font-semibold text-fg">Manuscript font size</label>
+              <span className="text-fg-muted">{prefs.manuscriptSize}px</span>
+            </div>
+            <input id="pref-size" type="range" min={15} max={28} step={1} value={prefs.manuscriptSize} onChange={(e) => setPrefs({ manuscriptSize: Number(e.target.value) })} className="w-full accent-[var(--action)]" />
+          </div>
+          <div>
+            <div className="mb-1 flex justify-between text-xs">
+              <label htmlFor="pref-leading" className="font-semibold text-fg">Line spacing</label>
+              <span className="text-fg-muted">{prefs.lineSpacing.toFixed(1)}</span>
+            </div>
+            <input id="pref-leading" type="range" min={1.4} max={2.4} step={0.1} value={prefs.lineSpacing} onChange={(e) => setPrefs({ lineSpacing: Math.round(Number(e.target.value) * 10) / 10 })} className="w-full accent-[var(--action)]" />
+          </div>
+          <div>
+            <label htmlFor="pref-width" className="mb-1 block text-xs font-semibold text-fg">Page width</label>
+            <Select id="pref-width" value={prefs.pageWidth} onChange={(e) => setPrefs({ pageWidth: e.target.value as keyof typeof PAGE_WIDTHS })}>
+              <option value="narrow">Narrow</option>
+              <option value="standard">Standard</option>
+              <option value="wide">Wide</option>
+            </Select>
+          </div>
+          <div>
+            <label htmlFor="pref-goal" className="mb-1 block text-xs font-semibold text-fg">Daily word goal (optional)</label>
+            <div className="flex gap-2">
+              <Input
+                id="pref-goal"
+                inputMode="numeric"
+                placeholder="No goal"
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                onBlur={saveGoal}
+                aria-invalid={goalError ? true : undefined}
+                aria-describedby={goalError ? 'pref-goal-error' : undefined}
+              />
+              <Button variant="secondary" onClick={saveGoal}>Set</Button>
+            </div>
+            {goalError && <p id="pref-goal-error" role="alert" className="mt-1 text-xs text-alert-text">{goalError}</p>}
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
+}
 
 function Toggle({ id, label, checked, onChange, hint }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
   return (
@@ -19,7 +131,7 @@ function Toggle({ id, label, checked, onChange, hint }: { id: string; label: str
         <span className="block text-sm font-medium text-fg">{label}</span>
         {hint && <span className="block text-xs text-fg-muted">{hint}</span>}
       </span>
-      <input id={id} type="checkbox" className="mt-1 size-4 accent-[var(--plum)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input id={id} type="checkbox" className="mt-1 size-4 accent-[var(--action)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
     </label>
   )
 }
@@ -105,6 +217,8 @@ export function SettingsPage() {
           </form>
         </Card>
 
+        <WritingPreferences />
+
         <Card>
           <CardHeader title="Display" />
           <div className="divide-y divide-line px-5 pb-3">
@@ -124,7 +238,6 @@ export function SettingsPage() {
                 <option value="1.25">Extra large</option>
               </Select>
             </div>
-            <Toggle id="paper-dark" label="Dark writing surface" checked={prefs.paperDark} onChange={(v) => setPrefs({ paperDark: v })} />
             <Toggle id="high-contrast" label="High contrast" checked={prefs.highContrast} onChange={(v) => setPrefs({ highContrast: v })} />
             <Toggle id="reduce-motion" label="Reduce motion" checked={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
           </div>

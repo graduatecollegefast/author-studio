@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { CheckCircle2, Download, FileUp, MoreHorizontal, RefreshCw, Star, Trash2, XCircle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/card'
+import { Badge, type BadgeTone } from '@/components/ui/card'
 import { ConfirmDialog } from '@/components/ui/dialog'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/menu'
 import { EmptyState, ErrorState, PageLoader, Spinner } from '@/components/ui/feedback'
@@ -24,10 +24,10 @@ interface LocalUpload {
 
 const ACCEPT = '.docx,.pdf,.epub,.txt,.md,application/pdf,application/epub+zip,text/plain,text/markdown,application/vnd.openxmlformats-officedocument.wordprocessingml.document'
 
-function statusTone(s: string): 'ok' | 'danger' | 'amber' | 'neutral' {
-  if (s === 'validated' || s === 'completed') return 'ok'
-  if (s === 'rejected' || s === 'failed') return 'danger'
-  if (s === 'pending' || s === 'uploaded' || s === 'queued' || s === 'processing') return 'amber'
+function statusTone(s: string): BadgeTone {
+  if (s === 'validated' || s === 'completed') return 'progress'
+  if (s === 'rejected' || s === 'failed' || s === 'needs_ocr') return 'alert'
+  if (s === 'pending' || s === 'uploaded' || s === 'queued' || s === 'processing') return 'info'
   return 'neutral'
 }
 
@@ -101,7 +101,7 @@ export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpen
   return (
     <div className="space-y-5">
       {autoOpenPicker && !files?.length && (
-        <p className="rounded-lg bg-amber-soft px-4 py-3 text-sm font-medium text-amber">
+        <p className="rounded-lg bg-selected px-4 py-3 text-sm font-medium text-fg-muted">
           Book created. Now add the manuscript file for this book.
         </p>
       )}
@@ -116,7 +116,7 @@ export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpen
           setDragging(false)
           void handleFiles(e.dataTransfer.files)
         }}
-        className={`rounded-[var(--radius-panel)] border-2 border-dashed p-6 text-center transition-colors ${dragging ? 'border-plum bg-plum-soft' : 'border-line bg-panel'}`}
+        className={`rounded-[var(--radius-panel)] border-2 border-dashed p-6 text-center transition-colors ${dragging ? 'border-ring bg-selected' : 'border-line bg-panel'}`}
       >
         <FileUp className="mx-auto size-8 text-fg-faint" aria-hidden />
         <p className="mt-2 font-semibold">Drop files here or choose files</p>
@@ -152,13 +152,13 @@ export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpen
               {u.state === 'uploading' ? (
                 <Spinner label="Uploading" />
               ) : u.state === 'done' ? (
-                <CheckCircle2 className="size-4 text-ok" aria-hidden />
+                <CheckCircle2 className="size-4 text-progress-text" aria-hidden />
               ) : (
-                <XCircle className="size-4 text-danger" aria-hidden />
+                <XCircle className="size-4 text-alert-text" aria-hidden />
               )}
               <span className="flex-1 truncate">{u.name}</span>
               <span className="text-xs text-fg-faint">{formatBytes(u.size)}</span>
-              {u.error && <span className="text-xs text-danger">{u.error}</span>}
+              {u.error && <span className="text-xs text-alert-text">{u.error}</span>}
               {u.state === 'error' && (
                 <Button variant="ghost" size="sm" onClick={() => setUploads((x) => x.filter((y) => y.key !== u.key))}>
                   Dismiss
@@ -200,7 +200,7 @@ export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpen
                         {f.original_name}
                       </span>
                       {book.current_manuscript_file_id === f.id && (
-                        <Badge tone="amber">
+                        <Badge tone="neutral">
                           <Star className="size-3" aria-hidden /> Current
                         </Badge>
                       )}
@@ -208,7 +208,7 @@ export function ManuscriptFiles({ book, autoOpenPicker }: { book: Book; autoOpen
                     <div className="mt-0.5 text-xs text-fg-faint">
                       {f.file_ext.toUpperCase()} · {f.kind === 'manuscript' ? `Manuscript v${f.version}` : 'Supporting'}
                     </div>
-                    {f.error_message && <div className="mt-1 text-xs text-danger">{f.error_message}</div>}
+                    {f.error_message && <div className="mt-1 text-xs text-alert-text">{f.error_message}</div>}
                   </td>
                   <td className="px-4 py-3 text-fg-muted">{formatBytes(f.size_bytes)}</td>
                   <td className="px-4 py-3">

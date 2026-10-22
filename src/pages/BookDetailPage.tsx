@@ -67,10 +67,10 @@ export function BookDetailPage() {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap gap-1.5">
-            <Badge tone="plum">{labelize(book.writing_status)}</Badge>
+            <Badge tone="info">{labelize(book.writing_status)}</Badge>
             <Badge>{labelize(book.book_type)}</Badge>
-            <Badge tone={book.content_rating === 'general' ? 'neutral' : 'amber'}>{labelize(book.content_rating)}</Badge>
-            {book.archived_at && <Badge tone="danger">Archived</Badge>}
+            <Badge tone={'neutral'}>{labelize(book.content_rating)}</Badge>
+            {book.archived_at && <Badge tone="alert">Archived</Badge>}
           </div>
           <h1 className="mt-3 font-serif text-3xl font-semibold leading-tight sm:text-4xl">{book.title}</h1>
           {book.subtitle && <p className="mt-1 font-serif text-lg italic text-fg-muted">{book.subtitle}</p>}
@@ -86,7 +86,7 @@ export function BookDetailPage() {
             </div>
             {pct !== null && (
               <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-panel-2">
-                <div className="h-full rounded-full bg-amber" style={{ width: `${pct}%` }} />
+                <div className="h-full rounded-full bg-progress" style={{ width: `${pct}%` }} />
               </div>
             )}
           </div>
@@ -165,7 +165,7 @@ export function BookDetailPage() {
             onClick={() => setParams({ tab: t.id }, { replace: true })}
             className={cn(
               '-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors',
-              tab === t.id ? 'border-plum text-fg' : 'border-transparent text-fg-muted hover:text-fg',
+              tab === t.id ? 'border-ring text-fg' : 'border-transparent text-fg-muted hover:text-fg',
             )}
           >
             {t.label}

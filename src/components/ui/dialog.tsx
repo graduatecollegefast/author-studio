@@ -101,7 +101,7 @@ export function ConfirmDialog({
             </div>
           )}
           {error && (
-            <p role="alert" className="text-danger">
+            <p role="alert" className="text-alert-text">
               {error}
             </p>
           )}

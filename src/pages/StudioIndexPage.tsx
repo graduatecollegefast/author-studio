@@ -49,7 +49,7 @@ export function StudioIndexPage() {
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {live.map((b) => (
             <li key={b.id}>
-              <Link to={`/books/${b.id}/write`} className="flex gap-4 rounded-[var(--radius-panel)] border border-line bg-panel p-4 hover:border-plum">
+              <Link to={`/books/${b.id}/write`} className="flex gap-4 rounded-[var(--radius-panel)] border border-line bg-panel p-4 hover:border-ring">
                 <div className="w-16 shrink-0">
                   <BookCover book={b} compact />
                 </div>

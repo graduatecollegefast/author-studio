@@ -2,7 +2,7 @@ import * as React from 'react'
 import { cn } from '@/lib/utils'
 
 const control =
-  'w-full rounded-lg border border-line bg-panel px-3 text-sm text-fg placeholder:text-fg-faint focus-visible:outline-2 focus-visible:outline-ring aria-[invalid=true]:border-danger'
+  'w-full rounded-lg border border-line bg-panel px-3 text-sm text-fg placeholder:text-fg-faint focus-visible:outline-2 focus-visible:outline-ring aria-[invalid=true]:border-alert'
 
 export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttributes<HTMLInputElement>>(
   ({ className, ...props }, ref) => <input ref={ref} className={cn(control, 'h-10', className)} {...props} />,
@@ -38,7 +38,7 @@ export function Field({ label, htmlFor, error, hint, className, children }: Fiel
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
       {error ? (
-        <p id={`${htmlFor}-error`} role="alert" className="mt-1 text-xs text-danger">
+        <p id={`${htmlFor}-error`} role="alert" className="mt-1 text-xs text-alert-text">
           {error}
         </p>
       ) : hint ? (

@@ -59,12 +59,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center gap-2.5 px-5 pt-6 pb-5">
-        <div className="grid size-9 place-items-center rounded-xl bg-plum text-white dark:text-ink">
+        <div className="grid size-9 place-items-center rounded-xl bg-action text-action-fg">
           <BookOpen className="size-5" aria-hidden />
         </div>
         <div className="leading-tight">
           <div className="font-serif text-lg font-semibold text-fg">Author Studio</div>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber">Private workspace</div>
+          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-fg-muted">Private workspace</div>
         </div>
       </div>
 
@@ -97,7 +97,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                   className={({ isActive }) =>
                     cn(
                       'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
-                      isActive ? 'bg-plum-soft text-plum-strong' : 'text-fg-muted hover:bg-panel-2 hover:text-fg',
+                      isActive ? 'bg-selected text-fg' : 'text-fg-muted hover:bg-panel-2 hover:text-fg',
                     )
                   }
                 >
@@ -198,7 +198,7 @@ export function PageHeader({
   return (
     <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
       <div>
-        {eyebrow && <div className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-amber">{eyebrow}</div>}
+        {eyebrow && <div className="mb-1 text-xs font-bold uppercase tracking-[0.16em] text-fg-muted">{eyebrow}</div>}
         <h1 className="font-serif text-3xl font-semibold text-fg sm:text-4xl">{title}</h1>
         {children && <div className="mt-2 max-w-2xl text-sm text-fg-muted">{children}</div>}
       </div>

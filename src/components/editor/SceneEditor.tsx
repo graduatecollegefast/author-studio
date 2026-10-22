@@ -46,7 +46,9 @@ export interface SceneEditorHandle {
 
 interface Props {
   scene: Scene
-  paperDark: boolean
+  /** Deep Focus: hide the formatting toolbar (shortcuts still work). */
+  minimal?: boolean
+  typography: { size: number; leading: number; width: string }
   onWordsChange?: (words: number) => void
   onSaved?: () => void
 }
@@ -74,8 +76,8 @@ function ToolbarButton({
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
       className={cn(
-        'grid size-8 place-items-center rounded-md text-fg-muted transition-colors hover:bg-panel-2 hover:text-fg disabled:opacity-40 [&_svg]:size-4',
-        active && 'bg-plum-soft text-plum-strong',
+        'grid size-8 place-items-center rounded-md border-b-2 border-transparent text-m-bar-muted transition-colors hover:text-m-bar-fg disabled:opacity-40 [&_svg]:size-4',
+        active && 'border-m-accent text-m-bar-fg',
       )}
     >
       {children}
@@ -112,7 +114,7 @@ function Toolbar({ editor }: { editor: Editor }) {
       <ToolbarButton label="Insert scene break" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
         <Minus />
       </ToolbarButton>
-      <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+      <span className="mx-1 h-5 w-px bg-m-bar-line" aria-hidden />
       <ToolbarButton label="Undo (Ctrl+Z)" disabled={!s.canUndo} onClick={() => editor.chain().focus().undo().run()}>
         <Undo2 />
       </ToolbarButton>
@@ -134,19 +136,19 @@ export function SaveIndicator({ state, onRetry }: { state: AutosaveState; onRetr
   switch (state.status) {
     case 'saving':
       return (
-        <span className={cn(base, 'text-fg-muted')} role="status" data-testid="save-status" data-status="saving">
+        <span className={cn(base, 'text-m-bar-muted')} role="status" data-testid="save-status" data-status="saving">
           <Loader2 className="size-3.5 animate-spin" aria-hidden /> Saving...
         </span>
       )
     case 'dirty':
       return (
-        <span className={cn(base, 'text-fg-muted')} role="status" data-testid="save-status" data-status="dirty">
-          <span className="size-2 rounded-full bg-amber" aria-hidden /> Unsaved changes
+        <span className={cn(base, 'text-m-bar-muted')} role="status" data-testid="save-status" data-status="dirty">
+          <span className="size-1.5 rounded-full bg-m-bar-muted" aria-hidden /> Editing
         </span>
       )
     case 'error':
       return (
-        <span className={cn(base, 'text-danger')} role="alert" data-testid="save-status" data-status="error">
+        <span className={cn(base, 'text-m-alert-text')} role="alert" data-testid="save-status" data-status="error">
           <CloudOff className="size-3.5" aria-hidden /> Not saved. Retrying{state.retryInMs ? ` in ${Math.round(state.retryInMs / 1000)}s` : ''}.
           <button type="button" className="underline" onClick={onRetry}>
             Retry now
@@ -155,27 +157,27 @@ export function SaveIndicator({ state, onRetry }: { state: AutosaveState; onRetr
       )
     case 'conflict':
       return (
-        <span className={cn(base, 'text-danger')} role="alert" data-testid="save-status" data-status="conflict">
+        <span className={cn(base, 'text-m-alert-text')} role="alert" data-testid="save-status" data-status="conflict">
           <AlertTriangle className="size-3.5" aria-hidden /> Changed elsewhere
         </span>
       )
     case 'saved':
       return (
-        <span className={cn(base, 'text-ok')} role="status" data-testid="save-status" data-status="saved">
-          <CheckCircle2 className="size-3.5" aria-hidden /> Saved {formatRelative(state.lastSavedAt?.toISOString())}
+        <span className={cn(base, 'text-m-bar-muted')} role="status" data-testid="save-status" data-status="saved">
+          <CheckCircle2 className="size-3.5 text-m-progress" aria-hidden /> Saved {formatRelative(state.lastSavedAt?.toISOString())}
         </span>
       )
     default:
       return (
-        <span className={cn(base, 'text-fg-faint')} data-testid="save-status" data-status="idle">
-          All changes saved
+        <span className={cn(base, 'text-m-bar-muted')} data-testid="save-status" data-status="idle">
+          <CheckCircle2 className="size-3.5 text-m-progress" aria-hidden /> All changes saved
         </span>
       )
   }
 }
 
 export const SceneEditor = React.forwardRef<SceneEditorHandle, Props>(function SceneEditor(
-  { scene, paperDark, onWordsChange, onSaved },
+  { scene, minimal, typography, onWordsChange, onSaved },
   ref,
 ) {
   const qc = useQueryClient()
@@ -273,13 +275,18 @@ export const SceneEditor = React.forwardRef<SceneEditorHandle, Props>(function S
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" onKeyDown={onKeyDown}>
-      <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-2 border-b border-line bg-ink/95 px-4 py-2 backdrop-blur">
-        {editor ? <Toolbar editor={editor} /> : <span />}
+      <div
+        className={cn(
+          'sticky top-0 z-10 flex min-h-11 flex-wrap items-center justify-between gap-2 bg-m-surround px-4 py-1.5',
+          !minimal && 'border-b border-m-bar-line bg-m-bar',
+        )}
+      >
+        {editor && !minimal ? <Toolbar editor={editor} /> : <span />}
         <SaveIndicator state={state} onRetry={() => controller.retry()} />
       </div>
 
       {state.status === 'conflict' && (
-        <div role="alert" className="mx-auto mt-4 w-full max-w-3xl rounded-lg border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger">
+        <div role="alert" className="mx-auto mt-4 w-full max-w-3xl rounded-lg border border-alert bg-alert-soft px-4 py-3 text-sm text-alert-text">
           <p className="font-semibold">This scene was saved from another window or device after you opened it.</p>
           <p className="mt-1">Choose which version to keep. Nothing is lost either way: the other version stays recoverable.</p>
           <div className="mt-3 flex flex-wrap gap-2">
@@ -294,12 +301,12 @@ export const SceneEditor = React.forwardRef<SceneEditorHandle, Props>(function S
       )}
 
       {recovered && (
-        <div role="status" className="mx-auto mt-4 w-full max-w-3xl rounded-lg border border-amber/40 bg-amber-soft px-4 py-3 text-sm text-amber">
+        <div role="status" className="mx-auto mt-4 w-full max-w-3xl rounded-lg border border-control bg-panel px-4 py-3 text-sm text-fg">
           <p className="font-semibold">Unsaved changes from {formatRelative(recovered.savedAt)} were found on this device.</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button
               size="sm"
-              variant="amber"
+              variant="primary"
               onClick={() => {
                 editor?.commands.setContent(recovered.content, { emitUpdate: false })
                 update({ content: recovered.content, text: recovered.text })
@@ -323,8 +330,17 @@ export const SceneEditor = React.forwardRef<SceneEditorHandle, Props>(function S
         </div>
       )}
 
-      <div className={cn('flex-1 px-3 py-6 sm:px-8 sm:py-10', paperDark && 'paper-dark')}>
-        <div className="mx-auto w-full max-w-[46rem] rounded-xl bg-paper px-6 py-10 shadow-[0_1px_0_rgba(0,0,0,0.04),0_12px_40px_-20px_rgba(0,0,0,0.35)] sm:px-14 sm:py-16">
+      <div className="flex-1 px-3 py-6 sm:px-8 sm:py-10">
+        <div
+          className="mx-auto w-full rounded-lg bg-paper px-6 py-10 sm:px-14 sm:py-16"
+          style={
+            {
+              maxWidth: typography.width,
+              '--ms-size': `${typography.size}px`,
+              '--ms-leading': typography.leading,
+            } as React.CSSProperties
+          }
+        >
           <EditorContent editor={editor} data-testid="scene-editor" />
         </div>
       </div>

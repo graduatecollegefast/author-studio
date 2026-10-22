@@ -27,13 +27,13 @@ export function BookCover({
   return (
     <div
       className={cn(
-        'flex aspect-[2/3] w-full flex-col justify-between rounded-md border border-line bg-gradient-to-br from-plum-soft via-panel-2 to-amber-soft',
+        'flex aspect-[2/3] w-full flex-col justify-between rounded-md border border-line bg-panel-2',
         compact ? 'p-2' : 'p-3',
         className,
       )}
       aria-hidden
     >
-      <div className={cn('h-px bg-amber', compact ? 'w-4' : 'w-8')} />
+      <div className={cn('h-px bg-progress', compact ? 'w-4' : 'w-8')} />
       {compact ? (
         <div className="font-serif text-2xl font-semibold leading-none text-fg">{book.title.trim().charAt(0).toUpperCase()}</div>
       ) : (

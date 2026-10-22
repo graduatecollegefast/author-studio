@@ -64,7 +64,7 @@ function Progress({ book }: { book: Book }) {
         <span>{pct}%</span>
       </div>
       <div className="mt-1 h-1 overflow-hidden rounded-full bg-panel-2" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100} aria-label="Progress to target word count">
-        <div className="h-full rounded-full bg-amber" style={{ width: `${pct}%` }} />
+        <div className="h-full rounded-full bg-progress" style={{ width: `${pct}%` }} />
       </div>
     </div>
   )
@@ -217,9 +217,9 @@ export function LibraryPage() {
                 <div className="mt-3 space-y-1.5 px-0.5">
                   <div className="line-clamp-2 font-serif text-base font-semibold leading-snug text-fg">{book.title}</div>
                   <div className="flex flex-wrap gap-1">
-                    <Badge tone="plum">{labelize(book.writing_status)}</Badge>
+                    <Badge tone="info">{labelize(book.writing_status)}</Badge>
                     {book.content_rating === 'adults_only' || book.content_rating === 'mature' ? (
-                      <Badge tone="amber">{labelize(book.content_rating)}</Badge>
+                      <Badge tone="neutral">{labelize(book.content_rating)}</Badge>
                     ) : null}
                   </div>
                   <div className="text-xs text-fg-muted">
@@ -246,14 +246,14 @@ export function LibraryPage() {
               {visible.map((book) => (
                 <tr key={book.id} className="border-b border-line last:border-0 hover:bg-panel-2">
                   <td className="px-4 py-3">
-                    <Link to={`/books/${book.id}`} className="font-serif text-base font-semibold text-fg hover:text-plum">
+                    <Link to={`/books/${book.id}`} className="font-serif text-base font-semibold text-fg hover:link">
                       {book.title}
                     </Link>
                     {book.pen_name && <div className="text-xs text-fg-faint">{book.pen_name}</div>}
                   </td>
                   <td className="px-4 py-3 text-fg-muted">{labelize(book.book_type)}</td>
                   <td className="px-4 py-3">
-                    <Badge tone="plum">{labelize(book.writing_status)}</Badge>
+                    <Badge tone="info">{labelize(book.writing_status)}</Badge>
                   </td>
                   <td className="px-4 py-3 text-fg-muted">
                     {formatNumber(book.word_count)}

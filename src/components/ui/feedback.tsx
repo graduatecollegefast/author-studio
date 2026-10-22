@@ -22,7 +22,7 @@ export function PageLoader({ label = 'Loading' }: { label?: string }) {
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const message = error instanceof Error ? error.message : 'Something went wrong.'
   return (
-    <div role="alert" className="rounded-[var(--radius-panel)] border border-danger/40 bg-danger-soft p-5 text-sm text-danger">
+    <div role="alert" className="rounded-[var(--radius-panel)] border border-alert bg-alert-soft p-5 text-sm text-alert-text">
       <p className="font-semibold">Could not load this.</p>
       <p className="mt-1">{message}</p>
       {onRetry && (

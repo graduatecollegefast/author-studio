@@ -27,7 +27,9 @@ http
     })
     const mod = await import(pathToFileURL(file).href)
     const response: Response = await mod.default(request, {})
-    res.writeHead(response.status, Object.fromEntries(response.headers))
+    const headers: Record<string, string> = {}
+    response.headers.forEach((v, k) => (headers[k] = v))
+    res.writeHead(response.status, headers)
     res.end(Buffer.from(await response.arrayBuffer()))
   })
   .listen(port, () => console.log(`functions listening on ${port}`))
