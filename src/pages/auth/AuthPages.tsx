@@ -172,7 +172,7 @@ export function ForgotPasswordPage() {
 }
 
 export function ResetPasswordPage() {
-  const { session, loading } = useAuth()
+  const { session, loading, finishRecovery } = useAuth()
   const navigate = useNavigate()
   const [password, setPassword] = React.useState('')
   const [confirm, setConfirm] = React.useState('')
@@ -200,6 +200,7 @@ export function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password })
     setBusy(false)
     if (error) return setError(error.message)
+    finishRecovery()
     navigate('/', { replace: true })
   }
 
@@ -222,9 +223,10 @@ export function ResetPasswordPage() {
 }
 
 export function RequireAuth({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth()
+  const { session, loading, recovering } = useAuth()
   const location = useLocation()
   if (loading) return <PageLoader label="Checking your session" />
+  if (session && recovering) return <Navigate to="/reset-password" replace />
   if (!session) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
   return <>{children}</>
 }

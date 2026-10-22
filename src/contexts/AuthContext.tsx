@@ -1,13 +1,14 @@
 import * as React from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase/client'
+import { arrivedToSetPassword, supabase } from '@/lib/supabase/client'
 
 interface AuthState {
   session: Session | null
   user: User | null
   loading: boolean
-  /** True after the user arrives from a password-reset email link. */
+  /** True after the user arrives from a password-reset or invite email link. */
   recovering: boolean
+  finishRecovery: () => void
   signOut: () => Promise<void>
 }
 
@@ -16,7 +17,7 @@ const AuthContext = React.createContext<AuthState | null>(null)
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = React.useState<Session | null>(null)
   const [loading, setLoading] = React.useState(true)
-  const [recovering, setRecovering] = React.useState(false)
+  const [recovering, setRecovering] = React.useState(arrivedToSetPassword)
 
   React.useEffect(() => {
     let active = true
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user: session?.user ?? null,
       loading,
       recovering,
+      finishRecovery: () => setRecovering(false),
       signOut: async () => {
         await supabase.auth.signOut()
       },
