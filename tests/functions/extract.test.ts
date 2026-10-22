@@ -36,8 +36,9 @@ describe('TXT', () => {
     ].join('\r\n')
     const r = await extractManuscript('txt', enc(text))
     expect(r.chapters.map((c) => c.title)).toEqual(['Chapter One', 'Chapter Two'])
-    expect(r.chapters[0].scenes).toHaveLength(2)
-    expect(r.chapters[0].scenes[0].text).toBe('Mara found the first letter in the bread box.\n\nIt smelled of the sea.')
+    // Chapters are not split into scenes; the scene break stays in the text as a divider.
+    expect(r.chapters[0].scenes).toHaveLength(1)
+    expect(r.chapters[0].scenes[0].text.startsWith('Mara found the first letter in the bread box.\n\nIt smelled of the sea.\n\n* * *\n\n')).toBe(true)
     expect(r.wordCount).toBe(9 + 5 + 8 + 5)
   })
 
@@ -65,7 +66,8 @@ describe('Markdown', () => {
       kind: 'paragraph',
       runs: [{ text: 'She said ' }, { text: 'no', italic: true }, { text: ' and meant ' }, { text: 'it', bold: true }, { text: '.' }],
     })
-    expect(r.chapters[0].scenes).toHaveLength(2)
+    expect(r.chapters[0].scenes).toHaveLength(1)
+    expect(r.chapters[0].scenes[0].blocks.some((b) => b.kind === 'break')).toBe(true)
   })
 
   it('does not treat lone asterisks as italics', () => {
@@ -86,7 +88,8 @@ describe('DOCX', () => {
     ])
     const r = await extractManuscript('docx', bytes)
     expect(r.chapters.map((c) => c.title)).toEqual(['Chapter 1: Accounts', 'Chapter 2: Debts'])
-    expect(r.chapters[0].scenes).toHaveLength(2)
+    expect(r.chapters[0].scenes).toHaveLength(1)
+    expect(r.chapters[0].scenes[0].blocks.filter((b) => b.kind === 'break')).toHaveLength(1)
     expect(r.chapters[0].scenes[0].blocks[0]).toEqual({
       kind: 'paragraph',
       runs: [{ text: 'The ledger was ' }, { text: 'green', italic: true }, { text: ' and ' }, { text: 'heavy', bold: true }, { text: '.' }],

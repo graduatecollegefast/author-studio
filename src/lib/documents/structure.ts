@@ -93,17 +93,24 @@ function blockText(b: Block): string {
 }
 
 function finishScene(blocks: Block[]): ExtractedScene | null {
-  const content = blocks.filter((b) => b.kind !== 'break')
+  // Scene breaks stay inside the chapter as a divider; leading, trailing and doubled ones are dropped.
+  const content: Block[] = []
+  for (const b of blocks) {
+    if (b.kind === 'break' && (!content.length || content[content.length - 1].kind === 'break')) continue
+    content.push(b)
+  }
+  while (content.length && content[content.length - 1].kind === 'break') content.pop()
   if (!content.some((b) => blockText(b).trim())) return null
-  const text = content.map(blockText).join('\n\n')
-  return { blocks: content, text, wordCount: countWords(text) }
+  const text = content.map((b) => (b.kind === 'break' ? '* * *' : blockText(b))).join('\n\n')
+  return { blocks: content, text, wordCount: countWords(text.replace(/^\* \* \*$/gm, '')) }
 }
 
 /**
  * Turn a flat list of blocks into chapters and scenes.
  * Chapter boundaries: headings (level 1 or 2), or paragraphs that read like
  * chapter titles ("Chapter 12", "CHAPTER TWELVE: The Ferry", "Prologue").
- * Scene boundaries: explicit breaks ("* * *", "#", horizontal rules).
+ * Each chapter is kept whole as one piece of text. Scene breaks ("* * *", "#",
+ * horizontal rules) stay in the text as dividers and do not split the chapter.
  * Text before the first chapter becomes "Opening" only if it is substantial.
  */
 export function splitIntoChapters(blocks: Block[]): ExtractedChapter[] {
@@ -133,12 +140,12 @@ export function splitIntoChapters(blocks: Block[]): ExtractedChapter[] {
 
   for (const b of blocks) {
     if (b.kind === 'break') {
-      closeScene()
+      current.push(b)
       continue
     }
     const text = blockText(b).trim()
     if (b.kind === 'paragraph' && isSceneBreak(text)) {
-      closeScene()
+      current.push({ kind: 'break' })
       continue
     }
     const isHeadingChapter = b.kind === 'heading' && b.level <= chapterLevel

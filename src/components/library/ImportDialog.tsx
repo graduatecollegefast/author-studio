@@ -178,7 +178,7 @@ export function ImportDialog({ file, onOpenChange }: Props) {
                               {c.frontMatter && <span className="ml-2 font-sans text-xs font-normal text-fg-muted">(title page, copyright: not imported unless selected)</span>}
                             </span>
                             <span className="shrink-0 text-xs text-fg-muted">
-                              {formatNumber(c.wordCount)} words · {c.scenes.length} {c.scenes.length === 1 ? 'scene' : 'scenes'}
+                              {formatNumber(c.wordCount)} words
                             </span>
                           </span>
                           <span className="mt-0.5 line-clamp-2 block text-xs text-fg-muted">

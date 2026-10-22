@@ -81,7 +81,7 @@ test('upload a Word manuscript, read it, and import chapters', async ({ page }) 
   const list = dialog.getByTestId('import-chapters')
   await expect(list.getByRole('listitem')).toHaveCount(3)
   await expect(list).toContainText('Chapter 1: Accounts')
-  await expect(list).toContainText('2 scenes')
+  await expect(list).not.toContainText('scenes')
   await list.getByRole('checkbox').nth(2).uncheck()
   await dialog.getByRole('button', { name: 'Import 2 chapters' }).click()
 
@@ -95,7 +95,10 @@ test('upload a Word manuscript, read it, and import chapters', async ({ page }) 
   const editor = page.getByRole('textbox', { name: /Manuscript: Scene 1/ })
   await expect(editor).toContainText(paragraph)
   await expect(editor.locator('em')).toHaveText('slowly')
-  await expect(page.getByRole('navigation', { name: 'Chapters and scenes' }).getByRole('button', { name: /^Scene 2/ })).toBeVisible()
+  // The whole chapter is one piece of text; the scene break is a divider, not a split.
+  await expect(editor.locator('hr')).toHaveCount(1)
+  await expect(editor).toContainText('At the bank, nobody remembered the Vances.')
+  await expect(page.getByRole('navigation', { name: 'Chapters and scenes' }).getByRole('button', { name: /^Scene 2/ })).toHaveCount(0)
 
   // Importing is not counted as words written today.
   const { data: stats } = await admin.from('writing_daily_stats').select('words_added').eq('owner_id', userId)
