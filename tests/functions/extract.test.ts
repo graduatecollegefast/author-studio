@@ -192,7 +192,7 @@ describe('print-layout cleanup', () => {
     // Running headers, footers and page numbers are gone.
     expect(text).not.toMatch(/SHAUN J\. PHREE|SOROR LOVE \d|^\d+$/m)
     expect(text).not.toContain('HEADER PART TEXT')
-    expect(r.cleanup?.runningHeadsRemoved).toBe(5)
+    expect(r.cleanup?.runningHeadsRemoved).toBe(7)
     expect(r.cleanup?.pageNumbersRemoved).toBe(1)
 
     // Drop cap and its text-box first line rejoin the paragraph, in order, once.
@@ -210,7 +210,10 @@ describe('print-layout cleanup', () => {
 
     // Title page and copyright never become a story chapter.
     expect(text).not.toMatch(/Copyright|All rights reserved|Also by/)
-    expect(r.chapters.filter((c) => !c.frontMatter).map((c) => c.title)).toEqual(['Chapter 1', 'Chapter 2'])
+    expect(r.chapters.filter((c) => !c.frontMatter).map((c) => c.title)).toEqual(['Chapter 1', 'Chapter 2', 'Chapter 3', 'Chapter 4', 'Chapter 5'])
+    // The last "Also by" title is not glued onto the first sentence of the story.
+    expect(text).not.toContain('Classified People')
+    expect(r.chapters.find((c) => c.title === 'Chapter 1')?.scenes[0].text.startsWith('People were trying')).toBe(true)
   })
 
   it('flags longer front matter instead of importing it as a chapter', async () => {
@@ -242,7 +245,8 @@ describe('print-layout cleanup', () => {
     expect(classifyFurniture('214', k, counts)).toBe('page-number')
     expect(classifyFurniture('Page 7 of 300', k, counts)).toBe('page-number')
     expect(classifyFurniture('“Soror love is real,” she said.', k, counts)).toBeNull()
-    expect(classifyFurniture('Chapter 3', k, counts)).toBeNull()
+    expect(classifyFurniture('Chapter 3', k, new Map([['chapter', 40]]))).toBeNull()
+    expect(classifyFurniture('CHAPTER TWELVE', k, new Map([['chapter twelve', 4]]))).toBeNull()
     expect(classifyFurniture('She was 21.', k, counts)).toBeNull()
   })
 

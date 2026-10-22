@@ -4,7 +4,7 @@
 // and decorative drop-cap letters. Every change is counted and reported.
 
 import { createRequire } from 'node:module'
-import type { Block, Run } from '../../../src/lib/documents/structure'
+import { looksLikeChapterHeading, type Block, type Run } from '../../../src/lib/documents/structure'
 
 const require = createRequire(import.meta.url)
 let dictionary: Set<string> | null = null
@@ -62,6 +62,8 @@ export function classifyFurniture(
 ): 'page-number' | 'running-head' | null {
   const t = text.trim()
   if (!t || t.length > 90) return null
+  // "Chapter 12", "Part Two", "Prologue" repeat and end in numbers too, but they are structure, never furniture.
+  if (looksLikeChapterHeading(t)) return null
   if (PAGE_NUMBER.test(t)) return 'page-number'
   const core = t.replace(EDGE_NUMBER, '').trim()
   const hadNumber = core.length < t.length
@@ -162,10 +164,21 @@ export function cleanupBlocks(input: Block[], opts: CleanupOptions): { blocks: B
   // 1. Remove furniture, remembering where pages ended.
   const kept: Array<{ block: Block; afterBreak: boolean; dropCap: boolean }> = []
   let breakPending = false
+  const seenUnnumbered = new Set<string>()
   input.forEach((b, i) => {
     if (opts.pageBreaks?.has(i)) breakPending = true
-    if (b.kind !== 'break') {
-      const kind = classifyFurniture(textOf(b), known, repeatCounts)
+    if (b.kind === 'paragraph') {
+      // Styled headings are structure; only plain paragraphs can be page furniture.
+      const t = textOf(b).trim()
+      let kind = classifyFurniture(t, known, repeatCounts)
+      // The first unnumbered appearance of the title or author is the title page, not a header.
+      if (kind === 'running-head' && !/\d/.test(t)) {
+        const k = key(t)
+        if (!seenUnnumbered.has(k)) {
+          seenUnnumbered.add(k)
+          kind = null
+        }
+      }
       if (kind) {
         if (kind === 'page-number') report.pageNumbersRemoved++
         else report.runningHeadsRemoved++
@@ -220,7 +233,10 @@ export function cleanupBlocks(input: Block[], opts: CleanupOptions): { blocks: B
         const prevText = textOf(prev)
         const startsLower = /^[a-z]/.test(text)
         const prevOpen = !endsSentence(prevText)
-        if ((startsLower && (prevOpen || afterBreak)) || (afterBreak && prevOpen && /^[A-Za-z]/.test(text))) {
+        // A capitalized continuation is only trusted after a full-length line of prose, so short
+        // list items ("Also by" titles, headings without punctuation) are never glued to the story.
+        const prevIsProse = prevText.length >= 80 && /[a-z,]$/.test(prevText.trim())
+        if ((startsLower && (prevOpen || afterBreak)) || (afterBreak && prevIsProse && /^[A-Z]/.test(text))) {
           const hyphen = /[a-z]-$/.test(prevText.trim()) && startsLower
           out[out.length - 1] = { kind: 'paragraph', runs: joinRuns(prev.runs, block.runs, hyphen ? '' : ' ') }
           report.paragraphsRejoined++

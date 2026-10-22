@@ -110,6 +110,8 @@ export async function makeConvertedDocx(): Promise<Uint8Array> {
     p('Copyright © 2024 by Shaun J. Phree'),
     p('All rights reserved.'),
     p('Also by Shaun J. Phree'),
+    p('Vanilla Fetish'),
+    p('Classified'),
     h1('Chapter 1'),
     dropCapFrame,
     hostWithTextBox,
@@ -127,6 +129,15 @@ export async function makeConvertedDocx(): Promise<Uint8Array> {
     h1('Chapter 2'),
     p('Morning came early.'),
     p('6 SHAUN J. PHREE'),
+    // Chapter titles typed as plain paragraphs, repeating like running heads do.
+    p('Chapter 3'),
+    p('Lunch was loud.'),
+    p('SOROR LOVE 7'),
+    p('Chapter 4'),
+    p('Dinner was quiet.'),
+    p('8 SHAUN J. PHREE'),
+    p('Chapter 5'),
+    p('The end.'),
   ].join('')
   const zip = new JSZip()
   zip.file(
