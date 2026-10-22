@@ -1,0 +1,159 @@
+import * as React from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
+import { PageBody, PageHeader } from '@/components/layout/AppShell'
+import { Button } from '@/components/ui/button'
+import { Card, CardHeader } from '@/components/ui/card'
+import { Field, Input, Select } from '@/components/ui/field'
+import { supabase } from '@/lib/supabase/client'
+import { passwordSchema } from '@/lib/schemas'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePreferences } from '@/contexts/PreferencesContext'
+import { throwIfError } from '@/services/errors'
+import type { Profile } from '@/types/db'
+
+function Toggle({ id, label, checked, onChange, hint }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
+  return (
+    <label htmlFor={id} className="flex cursor-pointer items-start justify-between gap-4 py-2">
+      <span>
+        <span className="block text-sm font-medium text-fg">{label}</span>
+        {hint && <span className="block text-xs text-fg-muted">{hint}</span>}
+      </span>
+      <input id={id} type="checkbox" className="mt-1 size-4 accent-[var(--plum)]" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+    </label>
+  )
+}
+
+export function SettingsPage() {
+  const { user, signOut } = useAuth()
+  const { prefs, setPrefs } = usePreferences()
+  const qc = useQueryClient()
+  const profile = useQuery({
+    queryKey: ['profile', user?.id],
+    enabled: Boolean(user),
+    queryFn: async () => {
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', user!.id).single()
+      throwIfError(error)
+      return data as Profile
+    },
+  })
+  const [displayName, setDisplayName] = React.useState('')
+  const [penNames, setPenNames] = React.useState('')
+  const [password, setPassword] = React.useState('')
+  const [confirm, setConfirm] = React.useState('')
+  const [pwError, setPwError] = React.useState<string | null>(null)
+  const [busy, setBusy] = React.useState<'profile' | 'password' | null>(null)
+
+  React.useEffect(() => {
+    if (profile.data) {
+      setDisplayName(profile.data.display_name ?? '')
+      setPenNames(profile.data.pen_names.join(', '))
+    }
+  }, [profile.data])
+
+  async function saveProfile(e: React.FormEvent) {
+    e.preventDefault()
+    setBusy('profile')
+    try {
+      const pen_names = penNames.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 20)
+      const { error } = await supabase.from('profiles').update({ display_name: displayName.trim() || null, pen_names }).eq('id', user!.id)
+      throwIfError(error)
+      await supabase.auth.updateUser({ data: { display_name: displayName.trim() || null } })
+      toast.success('Profile saved')
+      qc.invalidateQueries({ queryKey: ['profile', user?.id] })
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Could not save profile')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function changePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPwError(null)
+    const parsed = passwordSchema.safeParse(password)
+    if (!parsed.success) return setPwError(parsed.error.issues[0].message)
+    if (password !== confirm) return setPwError('Passwords do not match.')
+    setBusy('password')
+    const { error } = await supabase.auth.updateUser({ password })
+    setBusy(null)
+    if (error) return setPwError(error.message)
+    setPassword('')
+    setConfirm('')
+    toast.success('Password updated')
+  }
+
+  return (
+    <PageBody className="max-w-3xl">
+      <PageHeader eyebrow="Settings" title="Account and preferences" />
+      <div className="space-y-6">
+        <Card>
+          <CardHeader title="Profile" />
+          <form onSubmit={saveProfile} className="space-y-4 px-5 pb-5">
+            <Field label="Email" htmlFor="email">
+              <Input id="email" value={user?.email ?? ''} disabled />
+            </Field>
+            <Field label="Display name" htmlFor="display-name">
+              <Input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} maxLength={100} />
+            </Field>
+            <Field label="Pen names" htmlFor="pen-names" hint="Separate with commas">
+              <Input id="pen-names" value={penNames} onChange={(e) => setPenNames(e.target.value)} />
+            </Field>
+            <Button type="submit" disabled={busy !== null || profile.isLoading}>
+              {busy === 'profile' ? 'Saving...' : 'Save profile'}
+            </Button>
+          </form>
+        </Card>
+
+        <Card>
+          <CardHeader title="Display" />
+          <div className="divide-y divide-line px-5 pb-3">
+            <div className="flex items-center justify-between gap-4 py-2">
+              <label htmlFor="theme" className="text-sm font-medium">Theme</label>
+              <Select id="theme" className="w-40" value={prefs.theme} onChange={(e) => setPrefs({ theme: e.target.value as 'dark' | 'light' })}>
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+              </Select>
+            </div>
+            <div className="flex items-center justify-between gap-4 py-2">
+              <label htmlFor="font-scale" className="text-sm font-medium">Text size</label>
+              <Select id="font-scale" className="w-40" value={String(prefs.fontScale)} onChange={(e) => setPrefs({ fontScale: Number(e.target.value) })}>
+                <option value="0.875">Small</option>
+                <option value="1">Default</option>
+                <option value="1.125">Large</option>
+                <option value="1.25">Extra large</option>
+              </Select>
+            </div>
+            <Toggle id="paper-dark" label="Dark writing surface" checked={prefs.paperDark} onChange={(v) => setPrefs({ paperDark: v })} />
+            <Toggle id="high-contrast" label="High contrast" checked={prefs.highContrast} onChange={(v) => setPrefs({ highContrast: v })} />
+            <Toggle id="reduce-motion" label="Reduce motion" checked={prefs.reduceMotion} onChange={(v) => setPrefs({ reduceMotion: v })} />
+          </div>
+        </Card>
+
+        <Card>
+          <CardHeader title="Change password" />
+          <form onSubmit={changePassword} className="space-y-4 px-5 pb-5" noValidate>
+            <Field label="New password" htmlFor="new-password" hint="At least 8 characters">
+              <Input id="new-password" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} />
+            </Field>
+            <Field label="Confirm new password" htmlFor="confirm-password" error={pwError ?? undefined}>
+              <Input id="confirm-password" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} />
+            </Field>
+            <Button type="submit" disabled={busy !== null}>
+              {busy === 'password' ? 'Updating...' : 'Update password'}
+            </Button>
+          </form>
+        </Card>
+
+        <Card>
+          <CardHeader title="Session" />
+          <div className="px-5 pb-5">
+            <Button variant="secondary" onClick={() => void signOut()}>
+              Sign out
+            </Button>
+          </div>
+        </Card>
+      </div>
+    </PageBody>
+  )
+}

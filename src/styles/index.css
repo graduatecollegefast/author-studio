@@ -1,0 +1,166 @@
+@import '@fontsource-variable/manrope';
+@import '@fontsource-variable/newsreader';
+@import '@fontsource-variable/newsreader/wght-italic.css';
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+  Design tokens. Light values on :root, dark values on .dark.
+  ink      = page background        panel   = raised surfaces
+  paper    = writing surface        line    = hairlines
+  plum     = primary accent         amber   = highlight / status
+*/
+:root {
+  --ink: #f4f1ea;
+  --ink-2: #ece7dc;
+  --panel: #ffffff;
+  --panel-2: #f7f4ee;
+  --line: #ddd5c6;
+  --fg: #1d2233;
+  --fg-muted: #5d6273;
+  --fg-faint: #8b8e99;
+  --paper: #fffdf8;
+  --paper-fg: #23242b;
+  --plum: #6c5a9c;
+  --plum-strong: #574683;
+  --plum-soft: #e9e4f4;
+  --amber: #b06a1f;
+  --amber-soft: #f6e7d3;
+  --danger: #b4372f;
+  --danger-soft: #f8e1de;
+  --ok: #2f7a55;
+  --ring: #6c5a9c;
+}
+
+.dark {
+  --ink: #0d1324;
+  --ink-2: #111a30;
+  --panel: #152038;
+  --panel-2: #1a2742;
+  --line: #26334f;
+  --fg: #e9e6df;
+  --fg-muted: #a7adbd;
+  --fg-faint: #6f7790;
+  --paper: #f3eee4;
+  --paper-fg: #23242b;
+  --plum: #9d8ccf;
+  --plum-strong: #b3a5de;
+  --plum-soft: #2a2a4c;
+  --amber: #e0a15a;
+  --amber-soft: #3a2c1e;
+  --danger: #ef8a80;
+  --danger-soft: #3d1f22;
+  --ok: #7cc9a1;
+  --ring: #b3a5de;
+}
+
+/* Dark writing surface option inside the editor */
+.paper-dark {
+  --paper: #18223a;
+  --paper-fg: #e6e1d6;
+}
+
+.high-contrast {
+  --fg-muted: var(--fg);
+  --fg-faint: var(--fg-muted);
+  --line: var(--fg-faint);
+}
+
+@theme inline {
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-panel: var(--panel);
+  --color-panel-2: var(--panel-2);
+  --color-line: var(--line);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-faint: var(--fg-faint);
+  --color-paper: var(--paper);
+  --color-paper-fg: var(--paper-fg);
+  --color-plum: var(--plum);
+  --color-plum-strong: var(--plum-strong);
+  --color-plum-soft: var(--plum-soft);
+  --color-amber: var(--amber);
+  --color-amber-soft: var(--amber-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-ok: var(--ok);
+  --color-ring: var(--ring);
+  --font-sans: 'Manrope Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'Newsreader Variable', Georgia, 'Times New Roman', serif;
+  --radius-panel: 14px;
+}
+
+html {
+  font-size: var(--app-font-size, 16px);
+}
+
+body {
+  background: var(--ink);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  transition-duration: 0.01ms !important;
+}
+
+/* Manuscript typography */
+.manuscript {
+  font-family: var(--font-serif);
+  font-size: 1.1875rem;
+  line-height: 1.75;
+  color: var(--paper-fg);
+}
+.manuscript:focus { outline: none; }
+.manuscript p { margin: 0 0 0.9em; }
+.manuscript h1, .manuscript h2, .manuscript h3 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  line-height: 1.25;
+  margin: 1.2em 0 0.6em;
+}
+.manuscript h1 { font-size: 1.8em; }
+.manuscript h2 { font-size: 1.45em; }
+.manuscript h3 { font-size: 1.2em; }
+.manuscript blockquote {
+  border-left: 3px solid var(--plum);
+  padding-left: 1em;
+  font-style: italic;
+  margin: 1em 0;
+}
+.manuscript hr {
+  border: none;
+  text-align: center;
+  margin: 2em 0;
+}
+.manuscript hr::after {
+  content: '* * *';
+  letter-spacing: 0.6em;
+  color: var(--fg-faint);
+}
+.manuscript ul, .manuscript ol { padding-left: 1.5em; margin: 0 0 0.9em; }
+.manuscript ul { list-style: disc; }
+.manuscript ol { list-style: decimal; }
+.manuscript p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  height: 0;
+  pointer-events: none;
+  color: #a19c90;
+  font-style: italic;
+}
