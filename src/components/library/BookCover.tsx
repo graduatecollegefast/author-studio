@@ -33,7 +33,7 @@ export function BookCover({
       )}
       aria-hidden
     >
-      <div className={cn('h-px bg-progress', compact ? 'w-4' : 'w-8')} />
+      <div className={cn('h-px bg-control', compact ? 'w-4' : 'w-8')} />
       {compact ? (
         <div className="font-serif text-2xl font-semibold leading-none text-fg">{book.title.trim().charAt(0).toUpperCase()}</div>
       ) : (
