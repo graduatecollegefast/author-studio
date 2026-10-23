@@ -15,6 +15,12 @@ import { CharactersPage } from '@/pages/CharactersPage'
 import { CharacterDetailPage } from '@/pages/CharacterDetailPage'
 import { WorldPage } from '@/pages/WorldPage'
 import { WorldElementPage } from '@/pages/WorldElementPage'
+import { SeriesUniversesPage } from '@/pages/SeriesUniversesPage'
+import { SeriesDetailPage } from '@/pages/SeriesDetailPage'
+import { UniverseDetailPage } from '@/pages/UniverseDetailPage'
+import { RelationshipsPage } from '@/pages/RelationshipsPage'
+import { TimelinePage } from '@/pages/TimelinePage'
+import { ContinuityPage } from '@/pages/ContinuityPage'
 import { EmptyState, PageLoader } from '@/components/ui/feedback'
 
 // The editor bundle is large, so it loads only when the Writing Studio opens.
@@ -96,6 +102,12 @@ export function App() {
                 <Route path="characters/:characterId" element={<CharacterDetailPage />} />
                 <Route path="world" element={<WorldPage />} />
                 <Route path="world/:elementId" element={<WorldElementPage />} />
+                <Route path="series" element={<SeriesUniversesPage />} />
+                <Route path="series/:seriesId" element={<SeriesDetailPage />} />
+                <Route path="universes/:universeId" element={<UniverseDetailPage />} />
+                <Route path="relationships" element={<RelationshipsPage />} />
+                <Route path="timelines" element={<TimelinePage />} />
+                <Route path="continuity" element={<ContinuityPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>

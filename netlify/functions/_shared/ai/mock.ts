@@ -62,6 +62,32 @@ function synthesize(text: string) {
   }
 }
 
+// Continuity: a chapter saying "<Name> worked as a <job>" that differs from a canon occupation.
+function continuity(input: string) {
+  const canon = /<canon>\n?([\s\S]*?)\n?<\/canon>/.exec(input)?.[1] ?? ''
+  const text = passage(input)
+  const findings: Array<Record<string, unknown>> = []
+  for (const line of canon.split('\n')) {
+    const m = /^\[(F\d+)\] ([^|]+?) \| occupation: ([^(]+?) \(/.exec(line)
+    if (!m) continue
+    for (const s of sentences(text)) {
+      const w = new RegExp(`${m[2]} (?:worked|works) as an? ([a-z ]+?)[.,;]`).exec(s)
+      if (w && w[1].trim() !== m[3].trim())
+        findings.push({
+          category: 'occupation',
+          severity: 'warning',
+          canon_refs: [m[1]],
+          conflicting_excerpt: s,
+          description: `${m[2]} is a ${m[3].trim()} in canon but a ${w[1]} here.`,
+          suggested_resolution: 'Change the job in this line, or add a line explaining the career change.',
+        })
+    }
+  }
+  // Cites canon that does not exist; the server must discard it.
+  findings.push({ category: 'timeline', severity: 'critical', canon_refs: ['F999'], conflicting_excerpt: sentences(text)[0] ?? '', description: 'Invented.', suggested_resolution: '' })
+  return { findings }
+}
+
 export function mockProvider(): AIProvider {
   return {
     id: 'mock',
@@ -69,7 +95,8 @@ export function mockProvider(): AIProvider {
       const text = passage(req.input)
       const inputTokens = Math.ceil((req.system.length + req.input.length) / 4)
       if (text.includes('MOCK_DECLINE')) throw new ProviderDeclined('The test model declined this passage.', { inputTokens, outputTokens: 5 })
-      const data = req.schemaName === 'book_synthesis' ? synthesize(text) : extract(text)
+      const data =
+        req.schemaName === 'book_synthesis' ? synthesize(text) : req.schemaName === 'continuity_findings' ? continuity(req.input) : extract(text)
       return { data: data as T, usage: { inputTokens, outputTokens: Math.ceil(JSON.stringify(data).length / 4) } }
     },
     async generateText(req: TextRequest) {

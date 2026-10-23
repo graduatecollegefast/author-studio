@@ -47,6 +47,7 @@ export const MODELS: ModelInfo[] = [
 export const TASK_TYPES = {
   book_extraction: { label: 'Reading chapters (characters, places, events)', defaultTier: 'economy' },
   book_synthesis: { label: 'Whole-book analysis (plot, themes, style, series ideas)', defaultTier: 'standard' },
+  continuity_check: { label: 'Continuity checking (chapters against canon)', defaultTier: 'standard' },
 } as const
 export type TaskType = keyof typeof TASK_TYPES
 

@@ -20,6 +20,7 @@ import {
   Users,
   CalendarRange,
   X,
+  Network,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/contexts/AuthContext'
@@ -39,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/library', label: 'My Library', icon: Library, phase: 1 },
   { to: '/series', label: 'Series & Universes', icon: Globe2, phase: 3 },
   { to: '/characters', label: 'Character Bible', icon: Users, phase: 2 },
+  { to: '/relationships', label: 'Relationship Map', icon: Network, phase: 3 },
   { to: '/world', label: 'World Bible', icon: BookText, phase: 2 },
   { to: '/timelines', label: 'Story Timelines', icon: CalendarRange, phase: 3 },
   { to: '/studio', label: 'Writing Studio', icon: PenLine, phase: 1 },
@@ -50,7 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: Settings, phase: 1 },
 ]
 
-export const CURRENT_PHASE = 2
+export const CURRENT_PHASE = 3
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, signOut } = useAuth()

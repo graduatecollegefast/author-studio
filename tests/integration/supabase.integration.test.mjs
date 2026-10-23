@@ -386,6 +386,70 @@ test('discoveries: saved with evidence, deduplicated, private, and filed into th
   await a.from('characters').delete().in('full_name', ['Eli Vance', 'Mara Vance'])
 })
 
+test('series, universes, relationships, timelines and findings are private and linked safely', async () => {
+  const a = users.a.client
+  const b = users.b.client
+  const b1 = (await a.from('books').insert({ title: 'Tide One' }).select('id').single()).data.id
+  const b2 = (await a.from('books').insert({ title: 'Tide Two' }).select('id').single()).data.id
+  const uni = (await a.from('universes').insert({ name: 'Harborverse' }).select('id').single()).data.id
+  const ser = (await a.from('series').insert({ name: 'Tides', universe_id: uni, planned_book_count: 3 }).select('id').single()).data.id
+  assert.equal((await a.from('series_books').insert([{ series_id: ser, book_id: b1, reading_order: 1 }, { series_id: ser, book_id: b2, reading_order: 2 }])).error, null)
+
+  // A book can be in more than one series.
+  const ser2 = (await a.from('series').insert({ name: 'Collected' }).select('id').single()).data.id
+  assert.equal((await a.from('series_books').insert({ series_id: ser2, book_id: b1 })).error, null)
+
+  // Ordering all three ways in one call.
+  const ord = await a.rpc('set_series_order', { p_series_id: ser, p_rows: [
+    { book_id: b1, reading_order: 2, chronological_order: 1, publication_order: 2 },
+    { book_id: b2, reading_order: 1, chronological_order: 2, publication_order: 1 },
+  ] })
+  assert.equal(ord.data, 2)
+  const { data: rows } = await a.from('series_books').select('book_id, reading_order, chronological_order').eq('series_id', ser).order('reading_order')
+  assert.deepEqual(rows.map((r) => r.book_id), [b2, b1])
+  const theirs = await b.rpc('set_series_order', { p_series_id: ser, p_rows: [] })
+  assert.match(theirs.error?.message ?? '', /SERIES_NOT_FOUND/)
+
+  // Another author cannot attach their book to this series, or see it.
+  const bBook = (await b.from('books').insert({ title: 'Intruder' }).select('id').single()).data.id
+  assert.ok((await b.from('series_books').insert({ series_id: ser, book_id: bBook })).error)
+  assert.deepEqual((await b.from('series').select('id')).data, [])
+
+  // Relationships with books and events; group relationships with roles.
+  const [c1, c2, c3] = (await a.from('characters').insert([{ full_name: 'Ana Reed' }, { full_name: 'Bo Reed' }, { full_name: 'Cy Lake' }]).select('id').order('full_name')).data.map((r) => r.id)
+  const rel = (await a.from('relationships').insert({ character_a_id: c1, character_b_id: c2, category: 'married', current_status: 'separated', past_status: 'married', important_changes: 'Separated in book two' }).select('id').single()).data.id
+  const ev = (await a.from('story_events').insert({ book_id: b2, title: 'The separation', date_precision: 'approximate', approximate_label: 'Spring', end_label: 'Summer', reveal_order: 3 }).select('id').single()).data.id
+  assert.equal((await a.from('relationship_books').insert({ relationship_id: rel, book_id: b2 })).error, null)
+  assert.equal((await a.from('relationship_events').insert({ relationship_id: rel, event_id: ev })).error, null)
+  assert.ok((await b.from('relationship_events').insert({ relationship_id: rel, event_id: ev })).error, 'cannot link into another author’s relationship')
+  assert.deepEqual((await b.from('relationship_books').select('*')).data, [])
+  const grp = (await a.from('relationship_groups').insert({ name: 'The triad', structure_type: 'triad' }).select('id').single()).data.id
+  assert.equal((await a.from('relationship_group_members').insert([c1, c2, c3].map((c, i) => ({ group_id: grp, character_id: c, member_role: i === 0 ? 'anchor' : null })))).error, null)
+  assert.equal((await a.from('relationships').insert({ character_a_id: c1, group_id: grp, category: 'romantic' })).error, null)
+
+  // Event dates must be in order.
+  const bad = await a.from('story_events').insert({ title: 'Backwards', date_precision: 'exact', date_start: '2020-02-02', date_end: '2020-01-01' })
+  assert.ok(bad.error)
+
+  // Plot threads by kind; findings record the author decision only.
+  assert.equal((await a.from('plot_threads').insert({ series_id: ser, title: 'Who lit the lamp?', kind: 'mystery' })).error, null)
+  assert.ok((await a.from('plot_threads').insert({ series_id: ser, title: 'x', kind: 'nonsense' })).error)
+  const fid = (await a.from('editorial_findings').insert({ book_id: b2, review_type: 'continuity', category: 'occupation', severity: 'warning', description: 'Job differs', canon_fact_ids: [], conflicting_evidence: 'x' }).select('id').single()).data.id
+  assert.equal((await a.from('editorial_findings').update({ status: 'intentional', reviewed_at: new Date().toISOString() }).eq('id', fid)).error, null)
+  assert.deepEqual((await b.from('editorial_findings').update({ status: 'dismissed' }).eq('id', fid).select()).data ?? [], [])
+
+  // Deleting a series keeps its books; deleting a universe unlinks its series.
+  await a.from('series').delete().eq('id', ser2)
+  assert.equal((await a.from('books').select('id').eq('id', b1)).data.length, 1)
+  await a.from('universes').delete().eq('id', uni)
+  assert.equal((await a.from('series').select('universe_id').eq('id', ser).single()).data.universe_id, null)
+
+  await a.from('books').delete().in('id', [b1, b2])
+  await b.from('books').delete().eq('id', bBook)
+  await a.from('characters').delete().in('id', [c1, c2, c3])
+  await a.from('series').delete().eq('id', ser)
+})
+
 test('deleting a book removes its chapters, scenes, and versions', async () => {
   const { error } = await users.a.client.from('books').delete().eq('id', bookA.id)
   assert.equal(error, null)

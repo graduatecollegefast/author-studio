@@ -68,7 +68,7 @@ test('every page passes WCAG AA checks in dark and light themes, and all three w
     await page.getByRole('combobox', { name: 'Theme' }).selectOption(theme)
     await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(theme === 'dark')
     await expectAccessible(page, `settings (${theme})`)
-    for (const path of ['/', '/library', bookUrl, `${bookUrl}?tab=files`, `${bookUrl}?tab=details`, `${bookUrl}?tab=analysis`, '/studio', '/characters', '/world']) {
+    for (const path of ['/', '/library', bookUrl, `${bookUrl}?tab=files`, `${bookUrl}?tab=details`, `${bookUrl}?tab=analysis`, '/studio', '/characters', '/world', '/series', '/relationships', '/timelines', '/continuity']) {
       await page.goto(path)
       await expectAccessible(page, `${path} (${theme})`)
     }
