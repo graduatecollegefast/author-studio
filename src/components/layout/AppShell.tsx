@@ -52,7 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: Settings, phase: 1 },
 ]
 
-export const CURRENT_PHASE = 3
+export const CURRENT_PHASE = 4
 
 function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
   const { user, signOut } = useAuth()

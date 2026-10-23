@@ -14,6 +14,7 @@ import { BookFormDialog } from '@/components/library/BookFormDialog'
 import { ChapterList } from '@/components/library/ChapterList'
 import { ManuscriptFiles } from '@/components/library/ManuscriptFiles'
 import { AnalysisPanel } from '@/components/analysis/AnalysisPanel'
+import { BookAISettings } from '@/components/library/BookAISettings'
 import { qk, useBook } from '@/hooks/queries'
 import { deleteBook, markOpened, setArchived, uploadCover } from '@/services/books'
 import { cn, formatDate, formatNumber, labelize } from '@/lib/utils'
@@ -179,8 +180,9 @@ export function BookDetailPage() {
         {tab === 'chapters' && <ChapterList bookId={book.id} />}
         {tab === 'files' && <ManuscriptFiles book={book} autoOpenPicker={params.get('upload') === '1'} />}
         {tab === 'analysis' && <AnalysisPanel book={book} />}
+        {tab === 'details' && <BookAISettings book={book} />}
         {tab === 'details' && (
-          <Card className="p-6">
+          <Card className="mt-6 p-6">
             <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2">
               {(
                 [

@@ -88,6 +88,55 @@ function continuity(input: string) {
   return { findings }
 }
 
+// Writing: deterministic answers that echo what was asked, so tests can check the plumbing.
+const between = (input: string, tag: string) => new RegExp(`<${tag}[^>]*>\\n?([\\s\\S]*?)\\n?</${tag}>`).exec(input)?.[1]?.trim() ?? ''
+function prose(input: string): string {
+  const request = /Request: ([^\n]*)/.exec(input)?.[1] ?? ''
+  const direction = between(input, 'instruction')
+  const selection = /<manuscript selection="true">\n?([\s\S]*?)\n?<\/manuscript>/.exec(input)?.[1]?.trim() ?? ''
+  const scene = /Scene to write now: ([^\n]*)/.exec(input)?.[1]
+  if (scene) return `Mock scene: ${scene}.\n\nThe tide turned *slowly* against the pier.`
+  if (/^(Check the point of view|Check verb tense|Compare the text|Brainstorm)/.test(request)) return `Mock notes for: ${request.slice(0, 40)}`
+  if (selection) return `Mock rewrite of: ${selection.slice(0, 60)}`
+  return `Mock continuation${direction ? ` following: ${direction.slice(0, 60)}` : ''}.\n\nShe walked on.`
+}
+const WRITING: Record<string, (input: string) => unknown> = {
+  clarification_questions: () => ({
+    questions: [
+      { question: 'What does Mara want most in this chapter?', context: 'It sets her choices.', options: ['To leave the island', 'To protect Eli'] },
+      { question: 'Is the lighthouse fire a secret from Eli?', context: 'It changes the dialogue.', options: ['Yes', 'No'] },
+    ],
+  }),
+  decide_question: () => ({ answer: 'To protect Eli', reasoning: 'It fits the established sisters relationship.' }),
+  question_options: () => ({ options: ['Option one', 'Option two', 'Option three'] }),
+  idea_links: (input) => ({ links: [/\bB1:/.test(input) ? { ref: 'B1', reason: 'Same setting.' } : null, { ref: 'Z9', reason: 'Not a real reference.' }].filter(Boolean) }),
+  style_profile: () => ({
+    summary: 'Short, rhythmic sentences with close third person. "' + 'word '.repeat(20).trim() + '"',
+    ...Object.fromEntries(
+      ['narrative_voice', 'pov', 'tense', 'sentence_patterns', 'dialogue_style', 'pacing', 'description_density', 'emotional_intensity', 'humor', 'romantic_tension', 'character_development', 'chapter_structure', 'scene_transitions', 'common_themes'].map((k) => [k, `Mock ${k.replace(/_/g, ' ')}.`]),
+    ),
+    pov: 'Close third person.',
+    tense: 'Past tense.',
+  }),
+  partner_analysis: () => ({
+    analysis: 'Mock analysis of the concept.',
+    questions: [{ question: 'Should the sisters reconcile by the end?', context: 'It decides the ending.', options: ['Yes', 'No'] }],
+  }),
+  partner_plan: (input) => {
+    const chapters = Number(/exactly (\d+) chapters/.exec(input)?.[1] ?? 2)
+    const scenes = Number(/and (\d+) scene plans/.exec(input)?.[1] ?? 1)
+    return {
+      premise: 'Mock premise.',
+      character_arcs: [{ character: 'Mara Vance', arc: 'From guarded to open.' }],
+      chapters: Array.from({ length: chapters }, (_, c) => ({
+        title: `Mock Chapter ${c + 1}`,
+        summary: `Summary ${c + 1}.`,
+        scenes: Array.from({ length: scenes }, (_, s) => ({ title: `Scene ${c + 1}.${s + 1}`, plan: `Plan ${c + 1}.${s + 1}.` })),
+      })),
+    }
+  },
+}
+
 export function mockProvider(): AIProvider {
   return {
     id: 'mock',
@@ -95,12 +144,22 @@ export function mockProvider(): AIProvider {
       const text = passage(req.input)
       const inputTokens = Math.ceil((req.system.length + req.input.length) / 4)
       if (text.includes('MOCK_DECLINE')) throw new ProviderDeclined('The test model declined this passage.', { inputTokens, outputTokens: 5 })
+      if (req.input.includes('MOCK_DECLINE')) throw new ProviderDeclined('The test model declined this request.', { inputTokens, outputTokens: 5 })
       const data =
-        req.schemaName === 'book_synthesis' ? synthesize(text) : req.schemaName === 'continuity_findings' ? continuity(req.input) : extract(text)
+        req.schemaName === 'book_synthesis'
+          ? synthesize(text)
+          : req.schemaName === 'continuity_findings'
+            ? continuity(req.input)
+            : req.schemaName in WRITING
+              ? WRITING[req.schemaName](req.input)
+              : extract(text)
       return { data: data as T, usage: { inputTokens, outputTokens: Math.ceil(JSON.stringify(data).length / 4) } }
     },
     async generateText(req: TextRequest) {
-      return { text: 'Test response.', usage: { inputTokens: Math.ceil(req.input.length / 4), outputTokens: 3 } }
+      const inputTokens = Math.ceil((req.system.length + req.input.length) / 4)
+      if (req.input.includes('MOCK_DECLINE')) throw new ProviderDeclined('The test model declined this request.', { inputTokens, outputTokens: 5 })
+      const text = prose(req.input)
+      return { text, usage: { inputTokens, outputTokens: Math.ceil(text.length / 4) } }
     },
     getProviderCapabilities: () => ({ structuredOutput: true, streaming: false, declinesReported: true }),
   }

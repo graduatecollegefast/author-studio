@@ -37,7 +37,8 @@ export function openaiProvider(apiKey: string, fetchImpl: typeof fetch = fetch):
     const usage = { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0 }
     const parts = (data.output ?? []).filter((o) => o.type === 'message').flatMap((o) => o.content ?? [])
     if (parts.some((p) => p.type === 'refusal')) throw new ProviderDeclined('OpenAI declined to analyze this passage.', usage)
-    if (data.status === 'incomplete' && data.incomplete_details?.reason === 'max_output_tokens') throw new OutputTruncated(usage)
+    if (data.status === 'incomplete' && data.incomplete_details?.reason === 'max_output_tokens')
+      throw new OutputTruncated(usage, parts.filter((p) => p.type === 'output_text').map((p) => p.text ?? '').join(''))
     if (data.status === 'incomplete' && data.incomplete_details?.reason === 'content_filter')
       throw new ProviderDeclined('OpenAI declined to analyze this passage.', usage)
     const text = parts.filter((p) => p.type === 'output_text').map((p) => p.text ?? '').join('')

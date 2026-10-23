@@ -60,6 +60,8 @@ export interface Book {
   cover_path: string | null
   original_manuscript_file_id: string | null
   current_manuscript_file_id: string | null
+  ai_mode: 'assistant' | 'co_writer' | 'creative_partner'
+  style_profile_id: string | null
   word_count: number
   target_word_count: number | null
   publication_date: string | null

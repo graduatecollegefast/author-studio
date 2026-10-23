@@ -4,7 +4,7 @@ import { costUsd, findModel, type ProviderId, type Route, type TaskType } from '
 import { anthropicProvider } from './anthropic'
 import { mockProvider } from './mock'
 import { openaiProvider } from './openai'
-import { type AIProvider, OutputTruncated, ProviderDeclined, ProviderError, type StructuredRequest, type Usage } from './types'
+import { type AIProvider, OutputTruncated, ProviderDeclined, ProviderError, type StructuredRequest, type TextRequest, type Usage } from './types'
 
 export * from './types'
 
@@ -177,4 +177,41 @@ export async function testProviderKey(provider: ProviderId, fetchImpl: typeof fe
   if (res.status === 401) return `${who} rejected the key${detail ? ` (${who} says: ${detail})` : ''}.`
   if (res.status === 403) return `${who} accepted the key but refused access${detail ? ` (${who} says: ${detail})` : ''}.`
   return `${who} answered with error ${res.status}${detail ? `: ${detail}` : ''}.`
+}
+
+/** Plain prose generation with the same retries, usage records and decline handling. */
+export async function runText(
+  db: SupabaseClient,
+  opts: { route: Route; taskType: TaskType; taskId: string | null; request: Omit<TextRequest, 'model'> },
+): Promise<{ text: string; usage: Usage; cost: number; truncated: boolean }> {
+  const provider = getProvider(opts.route.provider)
+  let cost = 0
+  for (let attempt = 1; ; attempt++) {
+    try {
+      const r = await provider.generateText({ ...opts.request, model: opts.route.model })
+      cost += await recordUsage(db, opts.route, opts.taskType, opts.taskId, r.usage)
+      return { text: r.text, usage: r.usage, cost, truncated: false }
+    } catch (err) {
+      if (err instanceof ProviderDeclined) {
+        cost += await recordUsage(db, opts.route, opts.taskType, opts.taskId, err.usage)
+        ;(err as ProviderDeclined & { cost?: number }).cost = cost
+        throw err
+      }
+      if (err instanceof OutputTruncated) {
+        // Prose cut at the length limit is still usable; the author sees it as a proposal.
+        cost += await recordUsage(db, opts.route, opts.taskType, opts.taskId, err.usage)
+        if (err.text.trim()) return { text: err.text, usage: err.usage, cost, truncated: true }
+        throw Object.assign(new ProviderError('The response reached its length limit before finishing.', false), { cost })
+      }
+      const retryable = err instanceof ProviderError ? err.retryable : false
+      if (!retryable || attempt >= 4) throw err
+      await sleep((err as ProviderError).retryAfterMs ?? Math.min(20_000, 1000 * 2 ** attempt))
+    }
+  }
+}
+
+/** Estimated cost of one call, for budget checks before spending. */
+export function callCost(route: Route, inputTokens: number, outputTokens: number): number {
+  const m = findModel(route.provider, route.model)
+  return m ? costUsd(m, inputTokens, outputTokens) : 0
 }

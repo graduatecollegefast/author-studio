@@ -450,6 +450,65 @@ test('series, universes, relationships, timelines and findings are private and l
   await a.from('series').delete().eq('id', ser)
 })
 
+test('AI drafts are inserted as new scenes and chapters, never over existing text; AI settings stay private', async () => {
+  const a = users.a.client
+  const b = users.b.client
+  const book = (await a.from('books').insert({ title: 'Draft Book' }).select('id').single()).data.id
+  const ch1 = (await a.rpc('create_chapter', { p_book_id: book, p_title: 'One' })).data
+  const ch2 = (await a.rpc('create_chapter', { p_book_id: book, p_title: 'Two' })).data
+  const s1 = (await a.from('scenes').select('id').eq('chapter_id', ch1).single()).data.id
+  await a.rpc('save_scene', { p_scene_id: s1, p_content: doc('Original text.'), p_content_text: 'Original text.', p_expected_revision: 1 })
+
+  // A new scene right after scene 1 of chapter one.
+  const sc = await a.rpc('insert_drafted_scenes', { p_book_id: book, p_scenes: [{ title: 'AI scene', content: doc('Drafted words here'), text: 'Drafted words here' }], p_after_scene_id: s1 })
+  assert.equal(sc.error, null)
+  const { data: inCh1 } = await a.from('scenes').select('title, position, word_count, content_text').eq('chapter_id', ch1).order('position')
+  assert.deepEqual(inCh1.map((x) => x.title), ['Scene 1', 'AI scene'])
+  assert.equal(inCh1[0].content_text, 'Original text.')
+  assert.equal(inCh1[1].word_count, 3)
+
+  // A new chapter right after chapter one: chapter two moves down.
+  const nc = await a.rpc('insert_drafted_scenes', { p_book_id: book, p_scenes: [{ title: 'A', content: doc('x'), text: 'x' }, { title: 'B', content: doc('y'), text: 'y' }], p_after_chapter_id: ch1, p_chapter_title: 'Between' })
+  assert.equal(nc.error, null)
+  const { data: chs } = await a.from('chapters').select('title, word_count').eq('book_id', book).order('position')
+  assert.deepEqual(chs.map((c) => c.title), ['One', 'Between', 'Two'])
+  assert.equal(chs[1].word_count, 2)
+  const { data: bk } = await a.from('books').select('word_count').eq('id', book).single()
+  assert.equal(bk.word_count, 2 + 3 + 2)
+
+  // Bad content and other authors are refused.
+  const bad = await a.rpc('insert_drafted_scenes', { p_book_id: book, p_scenes: [{ title: 'x', content: { type: 'html' }, text: '' }] })
+  assert.match(bad.error?.message ?? '', /INVALID_CONTENT/)
+  const theirs = await b.rpc('insert_drafted_scenes', { p_book_id: book, p_scenes: [{ title: 'x', content: doc('x'), text: 'x' }] })
+  assert.match(theirs.error?.message ?? '', /BOOK_NOT_FOUND/)
+
+  // Proposals, plans, crossovers, style profiles and questions are private.
+  const prop = await a.from('revision_proposals').insert({ book_id: book, scene_id: s1, base_revision: 2, original_text: 'Original text.', command: 'rewrite', status: 'generating' }).select('id').single()
+  assert.equal(prop.error, null)
+  assert.ok((await a.from('revision_proposals').insert({ book_id: book, scene_id: s1, base_revision: 1, original_text: '', status: 'nonsense' })).error)
+  const plan = await a.from('story_plans').insert({ book_id: book, kind: 'premise', content: 'A premise' }).select('id').single()
+  assert.equal(plan.error, null)
+  const uni = (await a.from('universes').insert({ name: 'Other world' }).select('id').single()).data.id
+  assert.equal((await a.from('book_crossovers').insert({ book_id: book, universe_id: uni })).error, null)
+  const prof = (await a.from('writing_profiles').insert({ scope: 'author', name: 'My voice', profile: { pov: 'third' } }).select('id').single()).data.id
+  assert.equal((await a.from('books').update({ style_profile_id: prof, ai_mode: 'co_writer' }).eq('id', book)).error, null)
+  assert.ok((await a.from('books').update({ ai_mode: 'robot' }).eq('id', book)).error)
+  const q = await a.from('clarification_questions').insert({ book_id: book, question: 'Is the fire a secret?', options: ['Yes', 'No'], topic_key: 'fire secret' }).select('id').single()
+  assert.equal(q.error, null)
+  for (const t of ['revision_proposals', 'story_plans', 'book_crossovers', 'writing_profiles', 'clarification_questions']) {
+    assert.deepEqual((await b.from(t).select('*')).data, [], `${t} must be private`)
+  }
+  // Another author cannot point their book at this style profile.
+  const bBook = (await b.from('books').insert({ title: 'Theirs' }).select('id').single()).data.id
+  assert.ok((await b.from('books').update({ style_profile_id: prof }).eq('id', bBook)).error)
+  assert.ok((await b.from('book_crossovers').insert({ book_id: bBook, universe_id: uni })).error)
+
+  await a.from('books').delete().eq('id', book)
+  await b.from('books').delete().eq('id', bBook)
+  await a.from('universes').delete().eq('id', uni)
+  await a.from('writing_profiles').delete().eq('id', prof)
+})
+
 test('deleting a book removes its chapters, scenes, and versions', async () => {
   const { error } = await users.a.client.from('books').delete().eq('id', bookA.id)
   assert.equal(error, null)

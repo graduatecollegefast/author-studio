@@ -38,10 +38,23 @@ function stableStringify(value: unknown): string {
   return JSON.stringify(value)
 }
 
+export interface EditorSelection {
+  from: number
+  to: number
+  text: string
+}
+
 export interface SceneEditorHandle {
   flush: () => Promise<void>
   revision: () => number
   replaceContent: (content: TiptapDoc, revision: number) => void
+  /** The selected text, or null when nothing is selected. */
+  selection: () => EditorSelection | null
+  /**
+   * Put accepted AI text into the scene. 'replace' only replaces the original range if it still
+   * holds the same text; otherwise nothing changes and false is returned.
+   */
+  applyAI: (mode: 'replace' | 'append' | 'insert_after', content: TiptapDoc, range?: EditorSelection) => boolean
 }
 
 interface Props {
@@ -237,6 +250,27 @@ export const SceneEditor = React.forwardRef<SceneEditorHandle, Props>(function S
         controller.reset(revision)
         recoveryBuffer.clear(scene.id)
         onWordsChange?.(editor?.storage.characterCount.words() ?? 0)
+      },
+      selection: () => {
+        if (!editor) return null
+        const { from, to } = editor.state.selection
+        if (from === to) return null
+        const text = editor.state.doc.textBetween(from, to, '\n\n').trim()
+        return text ? { from, to, text } : null
+      },
+      applyAI: (mode, content, range) => {
+        if (!editor) return false
+        const nodes = content.content ?? []
+        if (mode === 'replace') {
+          if (!range) return false
+          const size = editor.state.doc.content.size
+          if (range.to > size || editor.state.doc.textBetween(range.from, range.to, '\n\n').trim() !== range.text) return false
+          // A single paragraph replaces inline; several become their own paragraphs.
+          const single = nodes.length === 1 && nodes[0].type === 'paragraph'
+          return editor.chain().focus().insertContentAt({ from: range.from, to: range.to }, single ? (nodes[0].content ?? []) : nodes).run()
+        }
+        if (mode === 'insert_after' && range) return editor.chain().focus().insertContentAt(Math.min(range.to, editor.state.doc.content.size), nodes).run()
+        return editor.chain().focus().insertContentAt(editor.state.doc.content.size, nodes).run()
       },
     }),
     [controller, editor, scene.id, onWordsChange],

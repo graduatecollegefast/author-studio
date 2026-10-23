@@ -21,6 +21,8 @@ import { UniverseDetailPage } from '@/pages/UniverseDetailPage'
 import { RelationshipsPage } from '@/pages/RelationshipsPage'
 import { TimelinePage } from '@/pages/TimelinePage'
 import { ContinuityPage } from '@/pages/ContinuityPage'
+import { PartnerPage } from '@/pages/PartnerPage'
+import { IdeasPage } from '@/pages/IdeasPage'
 import { EmptyState, PageLoader } from '@/components/ui/feedback'
 
 // The editor bundle is large, so it loads only when the Writing Studio opens.
@@ -108,6 +110,8 @@ export function App() {
                 <Route path="relationships" element={<RelationshipsPage />} />
                 <Route path="timelines" element={<TimelinePage />} />
                 <Route path="continuity" element={<ContinuityPage />} />
+                <Route path="partner" element={<PartnerPage />} />
+                <Route path="ideas" element={<IdeasPage />} />
                 <Route path="settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Route>

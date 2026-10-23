@@ -1,12 +1,12 @@
 import * as React from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, Expand, History, PanelLeft, Shrink } from 'lucide-react'
+import { ArrowLeft, Expand, PanelLeft, PanelRight, Shrink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorState, PageLoader } from '@/components/ui/feedback'
 import { Outline } from '@/components/editor/Outline'
 import { SceneEditor, type SceneEditorHandle } from '@/components/editor/SceneEditor'
-import { VersionHistory } from '@/components/editor/VersionHistory'
+import { StudioSidePanel } from '@/components/editor/StudioSidePanel'
 import { ModeSwitcher, TypographyMenu, WordProgress } from '@/components/editor/StudioControls'
 import { qk, useBook, useChapters, useDailyStats, useSceneMeta } from '@/hooks/queries'
 import { createChapter, getScene } from '@/services/chapters'
@@ -200,12 +200,12 @@ export function WritingStudioPage() {
         {!focus && (
           <button
             type="button"
-            aria-label={panels.right ? 'Hide history panel' : 'Show history panel'}
+            aria-label={panels.right ? 'Hide side panel' : 'Show side panel'}
             aria-pressed={panels.right}
             onClick={() => setPanels({ ...panels, right: !panels.right })}
             className={barButton}
           >
-            <History />
+            <PanelRight />
           </button>
         )}
       </header>
@@ -317,9 +317,19 @@ export function WritingStudioPage() {
           )}
         </div>
 
-        {showRight && activeSceneId && (
-          <aside className="w-80 shrink-0 overflow-y-auto border-l border-m-bar-line bg-ink-2 p-4 max-lg:fixed max-lg:inset-y-12 max-lg:right-0 max-lg:z-30 max-lg:shadow-2xl">
-            <VersionHistory sceneId={activeSceneId} editorRef={editorRef} />
+        {showRight && activeSceneId && activeMeta && (
+          <aside
+            aria-label="Side panel"
+            className="w-96 max-w-full shrink-0 overflow-y-auto border-l border-m-bar-line bg-ink-2 p-4 max-lg:fixed max-lg:inset-y-12 max-lg:right-0 max-lg:z-30 max-lg:shadow-2xl"
+          >
+            <StudioSidePanel
+              book={book.data}
+              sceneId={activeSceneId}
+              chapterId={activeMeta.chapter_id}
+              sceneText={scene.data?.content_text ?? ''}
+              editorRef={editorRef}
+              onOpenScene={selectScene}
+            />
           </aside>
         )}
       </div>

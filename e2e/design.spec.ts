@@ -68,7 +68,7 @@ test('every page passes WCAG AA checks in dark and light themes, and all three w
     await page.getByRole('combobox', { name: 'Theme' }).selectOption(theme)
     await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(theme === 'dark')
     await expectAccessible(page, `settings (${theme})`)
-    for (const path of ['/', '/library', bookUrl, `${bookUrl}?tab=files`, `${bookUrl}?tab=details`, `${bookUrl}?tab=analysis`, '/studio', '/characters', '/world', '/series', '/relationships', '/timelines', '/continuity']) {
+    for (const path of ['/', '/library', bookUrl, `${bookUrl}?tab=files`, `${bookUrl}?tab=details`, `${bookUrl}?tab=analysis`, '/studio', '/characters', '/world', '/series', '/relationships', '/timelines', '/continuity', '/partner', '/partner?tab=questions', '/partner?tab=style', '/ideas']) {
       await page.goto(path)
       await expectAccessible(page, `${path} (${theme})`)
     }
@@ -81,8 +81,9 @@ test('every page passes WCAG AA checks in dark and light themes, and all three w
     await page.getByRole('radio', { name: mode }).click()
     await expect(page.getByRole('radio', { name: mode })).toHaveAttribute('aria-checked', 'true')
     if (mode !== 'Deep Focus') {
-      const show = page.getByRole('button', { name: 'Show history panel' })
+      const show = page.getByRole('button', { name: 'Show side panel' })
       if (await show.count()) await show.click()
+      await page.getByRole('tab', { name: 'History' }).click()
       await expect(page.getByLabel('Manual checkpoint')).toBeVisible()
     }
     await expectAccessible(page, `studio ${mode}`)
@@ -94,7 +95,7 @@ test('every page passes WCAG AA checks in dark and light themes, and all three w
   await expect(page.locator('[data-mode="focus"]')).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Chapters and scenes' })).toHaveCount(0)
   await expect(page.getByRole('toolbar', { name: 'Formatting' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: /history panel/ })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /side panel/ })).toHaveCount(0)
   await expect(page.getByTestId('save-status')).toBeVisible()
 
   // The mode is stored in Supabase: a brand-new browser with no local data opens in Deep Focus.

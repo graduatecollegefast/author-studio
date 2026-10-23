@@ -39,7 +39,7 @@ export function anthropicProvider(apiKey: string, fetchImpl: typeof fetch = fetc
     const usage = { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0 }
     const text = (data.content ?? []).filter((b) => b.type === 'text').map((b) => b.text ?? '').join('')
     if (data.stop_reason === 'refusal') throw new ProviderDeclined('Claude declined to analyze this passage.', usage)
-    if (data.stop_reason === 'max_tokens') throw new OutputTruncated(usage)
+    if (data.stop_reason === 'max_tokens') throw new OutputTruncated(usage, text)
     return { text, usage }
   }
 

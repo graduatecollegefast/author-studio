@@ -69,10 +69,13 @@ export class ProviderError extends Error {
 /** Output stopped at the token limit, so the JSON is incomplete. */
 export class OutputTruncated extends Error {
   usage: Usage
-  constructor(usage: Usage) {
+  /** What was generated before the limit (useful for prose, not for JSON). */
+  text: string
+  constructor(usage: Usage, text = '') {
     super('The response was cut off at the output limit.')
     this.name = 'OutputTruncated'
     this.usage = usage
+    this.text = text
   }
 }
 

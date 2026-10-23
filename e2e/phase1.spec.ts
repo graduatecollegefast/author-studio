@@ -117,7 +117,8 @@ test('Phase 1 acceptance flow', async ({ page }) => {
   await expect(page.getByTestId('save-status')).toHaveAttribute('data-status', 'idle')
 
   // Manual checkpoint appears in version history
-  await page.getByRole('button', { name: 'Show history panel' }).click()
+  await page.getByRole('button', { name: 'Show side panel' }).click()
+  await page.getByRole('tab', { name: 'History' }).click()
   await page.getByLabel('Manual checkpoint').fill('First pass')
   await page.getByRole('button', { name: 'Save checkpoint' }).click()
   await expect(page.getByTestId('version-list')).toContainText('First pass')
