@@ -7,12 +7,14 @@ import { EmptyState, ErrorState, Spinner } from '@/components/ui/feedback'
 import { CreativePartner } from '@/components/partner/CreativePartner'
 import { QuestionCard } from '@/components/partner/QuestionCard'
 import { StyleProfiles } from '@/components/partner/StyleProfiles'
+import { SeriesReview } from '@/components/partner/SeriesReview'
 import { useBooks } from '@/hooks/queries'
 import { listQuestions, type Question } from '@/services/writing'
 import { cn } from '@/lib/utils'
 
 const TABS = [
   { id: 'partner', label: 'Creative Partner' },
+  { id: 'series', label: 'Series review' },
   { id: 'questions', label: 'Questions' },
   { id: 'style', label: 'Style profiles' },
 ] as const
@@ -35,7 +37,7 @@ export function PartnerPage() {
     else next.delete(k)
     setParams(next, { replace: true })
   }
-  const bookId = params.get('book') || (tab === 'partner' ? books.data?.[0]?.id : '') || ''
+  const bookId = params.get('book') || (tab === 'partner' || tab === 'series' ? books.data?.[0]?.id : '') || ''
   const book = books.data?.find((b) => b.id === bookId)
 
   return (
@@ -51,7 +53,10 @@ export function PartnerPage() {
             role="tab"
             aria-selected={tab === t.id}
             onClick={() => set('tab', t.id === 'partner' ? '' : t.id)}
-            className={cn('-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold', tab === t.id ? 'border-ring text-fg' : 'border-transparent text-fg-muted hover:text-fg')}
+            className={cn(
+              '-mb-px border-b-2 px-4 py-2.5 text-sm font-semibold',
+              tab === t.id ? 'border-ring text-fg' : 'border-transparent text-fg-muted hover:text-fg',
+            )}
           >
             {t.label}
           </button>
@@ -82,7 +87,15 @@ export function PartnerPage() {
               </Select>
             </Field>
             {tab === 'partner' && book && <CreativePartner key={book.id} bookId={book.id} bookTitle={book.title} />}
-            {tab === 'questions' && <QuestionsInbox bookId={bookId} titles={new Map(books.data.map((b) => [b.id, b.title]))} filter={params.get('show') ?? 'open'} onFilter={(v) => set('show', v === 'open' ? '' : v)} />}
+            {tab === 'series' && book && <SeriesReview key={book.id} bookId={book.id} />}
+            {tab === 'questions' && (
+              <QuestionsInbox
+                bookId={bookId}
+                titles={new Map(books.data.map((b) => [b.id, b.title]))}
+                filter={params.get('show') ?? 'open'}
+                onFilter={(v) => set('show', v === 'open' ? '' : v)}
+              />
+            )}
           </div>
         )}
       </div>
@@ -90,7 +103,17 @@ export function PartnerPage() {
   )
 }
 
-function QuestionsInbox({ bookId, titles, filter, onFilter }: { bookId: string; titles: Map<string, string>; filter: string; onFilter: (v: string) => void }) {
+function QuestionsInbox({
+  bookId,
+  titles,
+  filter,
+  onFilter,
+}: {
+  bookId: string
+  titles: Map<string, string>
+  filter: string
+  onFilter: (v: string) => void
+}) {
   const qc = useQueryClient()
   const questions = useQuery({ queryKey: ['questions', bookId || 'all'], queryFn: () => listQuestions(bookId || undefined) })
   const all = questions.data ?? []
@@ -106,7 +129,10 @@ function QuestionsInbox({ bookId, titles, filter, onFilter }: { bookId: string; 
             role="tab"
             aria-selected={current.id === f.id}
             onClick={() => onFilter(f.id)}
-            className={cn('rounded-full border px-3 py-1 text-xs font-semibold', current.id === f.id ? 'border-fg bg-selected text-fg' : 'border-control text-fg-muted hover:text-fg')}
+            className={cn(
+              'rounded-full border px-3 py-1 text-xs font-semibold',
+              current.id === f.id ? 'border-fg bg-selected text-fg' : 'border-control text-fg-muted hover:text-fg',
+            )}
           >
             {f.label} {all.filter(f.match).length}
           </button>
@@ -123,7 +149,12 @@ function QuestionsInbox({ bookId, titles, filter, onFilter }: { bookId: string; 
       ) : (
         <ul className="space-y-3" data-testid="questions">
           {shown.map((q) => (
-            <QuestionCard key={q.id} q={q} bookTitle={!bookId && q.book_id ? titles.get(q.book_id) : undefined} onChanged={() => qc.invalidateQueries({ queryKey: ['questions'] })} />
+            <QuestionCard
+              key={q.id}
+              q={q}
+              bookTitle={!bookId && q.book_id ? titles.get(q.book_id) : undefined}
+              onChanged={() => qc.invalidateQueries({ queryKey: ['questions'] })}
+            />
           ))}
         </ul>
       )}

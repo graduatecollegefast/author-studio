@@ -212,7 +212,7 @@ export function ContinuityPage() {
   )
 }
 
-function FindingCard({ f, bookId, onChanged }: { f: Finding; bookId: string; onChanged: () => void }) {
+export function FindingCard({ f, bookId, onChanged }: { f: Finding; bookId: string; onChanged: () => void }) {
   const [open, setOpen] = React.useState(false)
   const [busy, setBusy] = React.useState(false)
   const act = async (s: FindingStatus, msg: string) => {

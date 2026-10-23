@@ -212,7 +212,7 @@ export interface ContinuityOutputState {
   model?: string
 }
 
-async function saveFindings(
+export async function saveFindings(
   db: SupabaseClient,
   bookId: string,
   taskId: string,
@@ -302,7 +302,7 @@ export async function runContinuity(
     const settings = await loadSettings(db)
     const route = resolveRoute('continuity_check', settings.routing, availableProviders())
     if (action === 'restart') {
-      await db.from('editorial_findings').delete().eq('book_id', bookId).eq('review_type', 'continuity').eq('status', 'open')
+      await db.from('editorial_findings').delete().eq('book_id', bookId).eq('review_type', 'continuity').eq('status', 'open').eq('ai_task_id', task.id)
     }
     const prev = (fresh ? {} : task.output) as Partial<ContinuityOutputState>
     const out: ContinuityOutputState = {

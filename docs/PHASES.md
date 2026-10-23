@@ -63,5 +63,10 @@ Palette, semantic color roles, three writing modes, typography controls, daily g
 - Complete project backup: one ZIP with every table of the author's work (books, chapters, scenes, versions, Story Bible, timelines, relationships, ideas, notes, reviews, settings) plus uploaded manuscripts and covers. Restore adds the whole backup as a copy with new ids and its files; it never replaces or removes anything, and a failed restore removes what it added.
 - Account deletion in Settings: typed confirmation, removes stored files, then the account and everything it owns.
 
+## Series review (AI Writing Partner)
+- AI Writing Partner > Series review compares a book with the books before it in its series (by reading order).
+- Free: lists the characters from earlier books who appear in this book (by name, alias or nickname), how often, and whether they are linked to this book; links them in one click; flags duplicate character records; shows how many discoveries in earlier books still wait for review.
+- AI: for each chosen character, their profile, approved canon and passages from the earlier books are compared with every passage that mentions them now; then each chapter is compared with the earlier passages that share its names and places. Each finding quotes both books word for word (anything that cannot be found is dropped), is saved as a continuity finding, and appears here, in the Continuity Checker and in the Editorial Studio. Nothing in the books, canon or profiles changes. Resumable, with an estimate first and the usual spending limits.
+
 ## Phase 6
 As defined in the specification: find and replace, drag-and-drop reordering, resizable panels, polish, audits, and full test coverage.

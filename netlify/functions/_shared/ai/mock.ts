@@ -36,24 +36,67 @@ function extract(text: string) {
     m = /\b([A-Z][a-z]+) and ([A-Z][a-z]+) were (sisters|brothers|married|friends|rivals)\b/.exec(s)
     if (m) {
       const cat = { sisters: 'family', brothers: 'family', married: 'married', friends: 'friendship', rivals: 'rivalry' }[m[3]]
-      facts.push(fact({ category: 'relationship', subject: m[1], related_name: m[2], relationship_category: cat, attribute: m[3], value: s, excerpt: s }))
+      facts.push(
+        fact({ category: 'relationship', subject: m[1], related_name: m[2], relationship_category: cat, attribute: m[3], value: s, excerpt: s }),
+      )
     }
     m = /\bat the ([A-Z][a-z]+(?: [A-Z][a-z]+)+)/.exec(s)
-    if (m) facts.push(fact({ category: 'world', subject: m[1], world_category: 'business', attribute: 'description', value: s, excerpt: s, confidence: 0.8 }))
+    if (m)
+      facts.push(
+        fact({ category: 'world', subject: m[1], world_category: 'business', attribute: 'description', value: s, excerpt: s, confidence: 0.8 }),
+      )
     m = /^People said ([A-Z][a-z]+) (.+)$/.exec(s)
-    if (m) facts.push(fact({ category: 'character', subject: m[1], attribute: 'history.secret', value: m[2], excerpt: s, statement_type: 'rumor', confidence: 0.95 }))
+    if (m)
+      facts.push(
+        fact({
+          category: 'character',
+          subject: m[1],
+          attribute: 'history.secret',
+          value: m[2],
+          excerpt: s,
+          statement_type: 'rumor',
+          confidence: 0.95,
+        }),
+      )
     m = /^Years earlier, (.+)$/.exec(s)
-    if (m) facts.push(fact({ category: 'timeline', subject: 'Years earlier', attribute: 'event', value: m[1], when: 'years earlier', is_flashback: true, excerpt: s }))
+    if (m)
+      facts.push(
+        fact({
+          category: 'timeline',
+          subject: 'Years earlier',
+          attribute: 'event',
+          value: m[1],
+          when: 'years earlier',
+          is_flashback: true,
+          excerpt: s,
+        }),
+      )
   }
   // A quotation that is not in the text. The server must discard it.
-  facts.push(fact({ category: 'character', subject: 'Nobody Real', attribute: 'occupation', value: 'invented', excerpt: 'This sentence does not appear anywhere in the book at all.' }))
+  facts.push(
+    fact({
+      category: 'character',
+      subject: 'Nobody Real',
+      attribute: 'occupation',
+      value: 'invented',
+      excerpt: 'This sentence does not appear anywhere in the book at all.',
+    }),
+  )
   return { summary: sentences(text)[0] ?? '', facts }
 }
 
 function synthesize(text: string) {
   const first = sentences(text.replace(/^\[\d+\][^\n]*\n/gm, ''))[0] ?? ''
   return {
-    plot: { primary: `Mock plot: ${first}`, subplots: [], conflicts: ['A family secret surfaces'], turning_points: [], climax: '', ending: '', unresolved: [] },
+    plot: {
+      primary: `Mock plot: ${first}`,
+      subplots: [],
+      conflicts: ['A family secret surfaces'],
+      turning_points: [],
+      climax: '',
+      ending: '',
+      unresolved: [],
+    },
     themes: ['Family secrets'],
     emotional_conflicts: [],
     central_questions: [],
@@ -84,7 +127,14 @@ function continuity(input: string) {
     }
   }
   // Cites canon that does not exist; the server must discard it.
-  findings.push({ category: 'timeline', severity: 'critical', canon_refs: ['F999'], conflicting_excerpt: sentences(text)[0] ?? '', description: 'Invented.', suggested_resolution: '' })
+  findings.push({
+    category: 'timeline',
+    severity: 'critical',
+    canon_refs: ['F999'],
+    conflicting_excerpt: sentences(text)[0] ?? '',
+    description: 'Invented.',
+    suggested_resolution: '',
+  })
   return { findings }
 }
 
@@ -103,19 +153,77 @@ function prose(input: string): string {
 /** Editorial: a real sentence from the chapter with a revision, a note without one, and an invented quote that must be dropped. */
 function editorial(input: string) {
   const chapter = between(input, 'chapter')
-  const first = chapter.split(/\n+/).flatMap((para) => para.match(/[^.!?]+[.!?]+/g) ?? []).map((s) => s.trim()).find((s) => s.split(/\s+/).length >= 4)
+  const first = chapter
+    .split(/\n+/)
+    .flatMap((para) => para.match(/[^.!?]+[.!?]+/g) ?? [])
+    .map((s) => s.trim())
+    .find((s) => s.split(/\s+/).length >= 4)
   if (!first) return { findings: [] }
   return {
     findings: [
-      { category: 'word_choice', severity: 'warning', description: 'Mock issue in this sentence.', passage: first, revision: `${first.replace(/[.!?]+$/, '')}, revised.`, explanation: 'Mock reason.' },
-      { category: 'pacing', severity: 'suggestion', description: 'Mock note with no rewrite.', passage: first, revision: '', explanation: 'Mock pacing reason.' },
-      { category: 'clarity', severity: 'critical', description: 'Invented passage.', passage: 'This sentence never appears anywhere in the chapter text.', revision: 'Nope.', explanation: 'Should be dropped.' },
+      {
+        category: 'word_choice',
+        severity: 'warning',
+        description: 'Mock issue in this sentence.',
+        passage: first,
+        revision: `${first.replace(/[.!?]+$/, '')}, revised.`,
+        explanation: 'Mock reason.',
+      },
+      {
+        category: 'pacing',
+        severity: 'suggestion',
+        description: 'Mock note with no rewrite.',
+        passage: first,
+        revision: '',
+        explanation: 'Mock pacing reason.',
+      },
+      {
+        category: 'clarity',
+        severity: 'critical',
+        description: 'Invented passage.',
+        passage: 'This sentence never appears anywhere in the chapter text.',
+        revision: 'Nope.',
+        explanation: 'Should be dropped.',
+      },
+    ],
+  }
+}
+
+/** Series review: one real conflict quoting both the earlier passage and the current text, and one invented quote that must be dropped. */
+function seriesReview(input: string) {
+  const sentence = (t: string) => (t.match(/[^.!?]+[.!?]+/g) ?? []).map((x) => x.trim()).find((x) => x.split(/\s+/).length >= 4)
+  const p1 = /\[P1\] \([^)]*\) ([^\n]+)/.exec(input)?.[1] ?? ''
+  const cur = /\[C1\] \([^)]*\) ([^\n]+)/.exec(input)?.[1] ?? /<chapter[^>]*>\n([\s\S]*?)\n<\/chapter>/.exec(input)?.[1] ?? ''
+  const a = sentence(p1)
+  const b = sentence(cur)
+  if (!a || !b) return { findings: [] }
+  return {
+    findings: [
+      {
+        category: 'appearance',
+        severity: 'warning',
+        earlier_ref: 'P1',
+        earlier_excerpt: a,
+        current_excerpt: b,
+        description: 'Mock series conflict.',
+        suggested_resolution: 'Mock fix.',
+      },
+      {
+        category: 'age',
+        severity: 'critical',
+        earlier_ref: 'P1',
+        earlier_excerpt: a,
+        current_excerpt: 'This sentence was never written in the current book at all.',
+        description: 'Invented.',
+        suggested_resolution: 'None.',
+      },
     ],
   }
 }
 
 const WRITING: Record<string, (input: string) => unknown> = {
   editorial_findings: editorial,
+  series_review: seriesReview,
   clarification_questions: () => ({
     questions: [
       { question: 'What does Mara want most in this chapter?', context: 'It sets her choices.', options: ['To leave the island', 'To protect Eli'] },
@@ -124,11 +232,28 @@ const WRITING: Record<string, (input: string) => unknown> = {
   }),
   decide_question: () => ({ answer: 'To protect Eli', reasoning: 'It fits the established sisters relationship.' }),
   question_options: () => ({ options: ['Option one', 'Option two', 'Option three'] }),
-  idea_links: (input) => ({ links: [/\bB1:/.test(input) ? { ref: 'B1', reason: 'Same setting.' } : null, { ref: 'Z9', reason: 'Not a real reference.' }].filter(Boolean) }),
+  idea_links: (input) => ({
+    links: [/\bB1:/.test(input) ? { ref: 'B1', reason: 'Same setting.' } : null, { ref: 'Z9', reason: 'Not a real reference.' }].filter(Boolean),
+  }),
   style_profile: () => ({
     summary: 'Short, rhythmic sentences with close third person. "' + 'word '.repeat(20).trim() + '"',
     ...Object.fromEntries(
-      ['narrative_voice', 'pov', 'tense', 'sentence_patterns', 'dialogue_style', 'pacing', 'description_density', 'emotional_intensity', 'humor', 'romantic_tension', 'character_development', 'chapter_structure', 'scene_transitions', 'common_themes'].map((k) => [k, `Mock ${k.replace(/_/g, ' ')}.`]),
+      [
+        'narrative_voice',
+        'pov',
+        'tense',
+        'sentence_patterns',
+        'dialogue_style',
+        'pacing',
+        'description_density',
+        'emotional_intensity',
+        'humor',
+        'romantic_tension',
+        'character_development',
+        'chapter_structure',
+        'scene_transitions',
+        'common_themes',
+      ].map((k) => [k, `Mock ${k.replace(/_/g, ' ')}.`]),
     ),
     pov: 'Close third person.',
     tense: 'Past tense.',
