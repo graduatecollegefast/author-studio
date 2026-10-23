@@ -8,6 +8,7 @@ import { HttpError } from '../http'
 import { availableProviders, checkBudget, loadSettings, ProviderDeclined, ProviderError, runStructured, spending } from '../ai'
 import { locateExcerpt } from '../analysis/evidence'
 import { relatedBooks } from '../context/related'
+import { ageFindings } from './ages'
 import { canonConflicts, chapterContext, type CanonFactRow, type CharacterRow, type ContextFact, type FindingDraft } from './canon'
 import { CONTINUITY_CATEGORIES, CONTINUITY_SCHEMA, CONTINUITY_SYSTEM, continuityInput, type ContinuityOutput } from './prompts'
 
@@ -302,7 +303,13 @@ export async function runContinuity(
     const settings = await loadSettings(db)
     const route = resolveRoute('continuity_check', settings.routing, availableProviders())
     if (action === 'restart') {
-      await db.from('editorial_findings').delete().eq('book_id', bookId).eq('review_type', 'continuity').eq('status', 'open').eq('ai_task_id', task.id)
+      await db
+        .from('editorial_findings')
+        .delete()
+        .eq('book_id', bookId)
+        .eq('review_type', 'continuity')
+        .eq('status', 'open')
+        .eq('ai_task_id', task.id)
     }
     const prev = (fresh ? {} : task.output) as Partial<ContinuityOutputState>
     const out: ContinuityOutputState = {
@@ -334,6 +341,10 @@ export async function runContinuity(
     // 1. Free: canon that contradicts itself.
     if (!out.canon_checked) {
       out.findings += await saveFindings(db, bookId, task.id, canonConflicts(l.facts, new Set([bookId]), l.titles))
+      // Free: ages against birth dates on each chapter's story date.
+      const inScope = new Set(l.chapters.map((c) => c.id))
+      const ages = (await ageFindings(db, bookId)).filter((f) => (chapterIds ? f.chapter_id !== null && inScope.has(f.chapter_id) : true))
+      out.findings += await saveFindings(db, bookId, task.id, ages)
       out.canon_checked = true
     }
 

@@ -20,6 +20,7 @@ export interface Character {
   date_of_birth: string | null
   age: string | null
   occupation: string | null
+  residence: string | null
   education: string | null
   role: string | null
   appearance: Record<string, string>

@@ -36,6 +36,7 @@ const IDENTITY: Array<[keyof Character, string]> = [
   ['date_of_birth', 'Date of birth'],
   ['age', 'Age'],
   ['occupation', 'Occupation'],
+  ['residence', 'Where they live'],
   ['education', 'Education'],
   ['role', 'Story role'],
 ]
@@ -117,6 +118,7 @@ export function CharacterDetailPage() {
         date_of_birth: draft.date_of_birth?.trim() || null,
         age: draft.age?.trim() || null,
         occupation: draft.occupation?.trim() || null,
+        residence: draft.residence?.trim() || null,
         education: draft.education?.trim() || null,
         role: draft.role?.trim() || null,
         appearance: compact(draft.appearance),

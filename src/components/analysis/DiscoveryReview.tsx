@@ -32,6 +32,8 @@ type StatusTab = (typeof STATUS_TABS)[number]['id']
 const PAGE = 150
 
 export function attributeLabel(a: string): string {
+  if (a === 'residence') return 'Where they live'
+  if (a === 'date_of_birth') return 'Date of birth'
   const [section, key] = a.includes('.') ? a.split('.', 2) : ['', a]
   const words = (key ?? a).replace(/_/g, ' ')
   const nice = words.charAt(0).toUpperCase() + words.slice(1)

@@ -67,6 +67,7 @@ export interface Book {
   publication_date: string | null
   chronological_position: number | null
   author_notes: string | null
+  story_start_date: string | null
   archived_at: string | null
   last_opened_at: string | null
   created_at: string
@@ -107,6 +108,9 @@ export interface Chapter {
   position: number
   summary: string | null
   word_count: number
+  story_date: string | null
+  story_date_text: string | null
+  story_date_source: 'detected' | 'author' | null
   created_at: string
   updated_at: string
 }

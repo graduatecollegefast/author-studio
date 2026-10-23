@@ -14,6 +14,7 @@ import { BookFormDialog } from '@/components/library/BookFormDialog'
 import { ChapterList } from '@/components/library/ChapterList'
 import { ManuscriptFiles } from '@/components/library/ManuscriptFiles'
 import { AnalysisPanel } from '@/components/analysis/AnalysisPanel'
+import { StoryDates } from '@/components/library/StoryDates'
 import { BookAISettings } from '@/components/library/BookAISettings'
 import { qk, useBook } from '@/hooks/queries'
 import { deleteBook, markOpened, setArchived, uploadCover } from '@/services/books'
@@ -23,6 +24,7 @@ const TABS = [
   { id: 'chapters', label: 'Chapters' },
   { id: 'files', label: 'Manuscript files' },
   { id: 'analysis', label: 'AI analysis' },
+  { id: 'dates', label: 'Story dates' },
   { id: 'details', label: 'Details' },
 ] as const
 type TabId = (typeof TABS)[number]['id']
@@ -180,6 +182,7 @@ export function BookDetailPage() {
         {tab === 'chapters' && <ChapterList bookId={book.id} />}
         {tab === 'files' && <ManuscriptFiles book={book} autoOpenPicker={params.get('upload') === '1'} />}
         {tab === 'analysis' && <AnalysisPanel book={book} />}
+        {tab === 'dates' && <StoryDates bookId={book.id} />}
         {tab === 'details' && <BookAISettings book={book} />}
         {tab === 'details' && (
           <Card className="mt-6 p-6">
@@ -225,8 +228,8 @@ export function BookDetailPage() {
         title="Delete this book permanently?"
         description={
           <>
-            This permanently deletes <strong className="text-fg">{book.title}</strong>, its chapters, scenes, version history, uploaded
-            manuscript files, and cover. If you only want it out of the way, archive it instead.
+            This permanently deletes <strong className="text-fg">{book.title}</strong>, its chapters, scenes, version history, uploaded manuscript
+            files, and cover. If you only want it out of the way, archive it instead.
           </>
         }
         confirmLabel="Delete book forever"

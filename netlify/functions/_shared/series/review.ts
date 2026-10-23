@@ -61,6 +61,7 @@ interface CharacterRow {
   age: string | null
   date_of_birth: string | null
   occupation: string | null
+  residence: string | null
   role: string | null
   appearance: Record<string, unknown> | null
   personality: Record<string, unknown> | null
@@ -164,7 +165,7 @@ async function load(db: SupabaseClient, bookId: string): Promise<Loaded> {
     db
       .from('characters')
       .select(
-        'id, full_name, preferred_name, aliases, nicknames, pronouns, age, date_of_birth, occupation, role, appearance, personality, history, custom_fields, first_appearance_book_id',
+        'id, full_name, preferred_name, aliases, nicknames, pronouns, age, date_of_birth, occupation, residence, role, appearance, personality, history, custom_fields, first_appearance_book_id',
       )
       .order('full_name')
       .limit(5000),
@@ -318,7 +319,7 @@ function characterStep(l: Loaded, s: Loaded['shared'][number]): CharacterStep {
   const profile = [
     `Name: ${c.full_name}`,
     s.variants.length > 1 ? `Also called: ${s.variants.filter((v) => v !== c.full_name).join(', ')}` : '',
-    ...(['pronouns', 'age', 'date_of_birth', 'occupation', 'role'] as const).map((k) => (c[k] ? `${k.replace(/_/g, ' ')}: ${c[k]}` : '')),
+    ...(['pronouns', 'age', 'date_of_birth', 'occupation', 'residence', 'role'] as const).map((k) => (c[k] ? `${k.replace(/_/g, ' ')}: ${c[k]}` : '')),
     ...flat(c.appearance),
     ...flat(c.personality),
     ...flat(c.history),

@@ -72,5 +72,11 @@ Palette, semantic color roles, three writing modes, typography controls, daily g
 - Character page > Merge duplicates (also linked from the series review's duplicate warning). Pick the records that are the same person; matching names are listed first. A confirmation step explains what happens.
 - `merge_characters()` runs in one transaction as the author: the kept profile wins, blanks are filled from the others, their names become aliases and their notes are appended; book appearances, history, relationships, groups, timeline events, world links, ideas, POV, canon facts and discoveries move to the kept record; a relationship between the two records is removed; a full copy of each merged record is saved in the activity log; then the merged records are removed.
 
+## Story dates, ages and where characters live
+- Characters have a "Where they live" field. AI analysis can propose it, and approving the discovery fills it in when empty. It is in the Character Bible export, merges, the series review and the writing context.
+- Book page > Story dates: each chapter's date is read from dates written in it ("March 3, 2024", "3rd of March 2024", "2024-03-03", "3/3/2024", "March 2024", or "March 3" once the year is known). A chapter without one takes the date of the chapter before it, or the book's start date. The author can set the start date and any chapter's date; their dates always win and are never overwritten.
+- Ages: from each character's date of birth (a year is enough), their age on every chapter's date. Ages written in the text ("Mara, 34,", "Mara was thirty-four", "the 34-year-old Mara") and profile ages are checked against it, free. Mismatches show on the Story dates tab and as continuity findings with the quote.
+- Writing help: every AI writing request now includes the scene's story date and the ages and homes of the characters in it, so drafts keep ages, seasons and places right.
+
 ## Phase 6
 As defined in the specification: find and replace, drag-and-drop reordering, resizable panels, polish, audits, and full test coverage.

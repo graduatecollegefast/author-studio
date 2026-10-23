@@ -604,3 +604,26 @@ test('merge_characters folds duplicates into one record and moves every link', a
   assert.equal(log.metadata.merged.notes, 'Dup notes.')
   await c.from('books').delete().eq('id', book.id)
 })
+
+test('story dates and where characters live: saved, checked, merged and filled from discoveries', async () => {
+  const c = users.a.client
+  const { data: book } = await c.from('books').insert({ title: `Dates ${run}`, story_start_date: '2024-03-01' }).select('id, story_start_date').single()
+  assert.equal(book.story_start_date, '2024-03-01')
+  const ch = (await c.rpc('create_chapter', { p_book_id: book.id, p_title: 'One' })).data
+  assert.equal((await c.from('chapters').update({ story_date: '2024-03-03', story_date_text: 'March 3, 2024', story_date_source: 'detected' }).eq('id', ch)).error, null)
+  assert.ok((await c.from('chapters').update({ story_date_source: 'guessed' }).eq('id', ch)).error, 'unknown date source rejected')
+
+  const keep = (await c.from('characters').insert({ full_name: 'Ivy Moss' }).select('id').single()).data.id
+  const dup = (await c.from('characters').insert({ full_name: 'Ivy Moss', residence: 'Elm Row' }).select('id').single()).data.id
+  assert.equal((await c.rpc('merge_characters', { p_keep: keep, p_merge: [dup] })).error, null)
+  assert.equal((await c.from('characters').select('residence').eq('id', keep).single()).data.residence, 'Elm Row', 'merging fills where they live')
+
+  const { data: fact } = await c
+    .from('canon_facts')
+    .insert({ book_id: book.id, entity_type: 'character', entity_label: 'Rook Hale', attribute: 'residence', value: 'Pier Lane', statement_type: 'narrator', status: 'proposed', category: 'character' })
+    .select('id')
+    .single()
+  assert.equal((await c.rpc('review_discoveries', { p_fact_ids: [fact.id], p_action: 'approve' })).error, null)
+  assert.equal((await c.from('characters').select('residence').eq('full_name', 'Rook Hale').single()).data.residence, 'Pier Lane', 'approved discoveries fill where they live')
+  await c.from('books').delete().eq('id', book.id)
+})

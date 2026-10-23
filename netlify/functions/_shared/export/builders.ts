@@ -166,6 +166,7 @@ const CHARACTER_TEXT = [
   ['date_of_birth', 'Date of birth'],
   ['role', 'Story role'],
   ['occupation', 'Occupation'],
+  ['residence', 'Where they live'],
   ['education', 'Education'],
   ['gender_identity', 'Gender identity'],
   ['sexual_orientation', 'Sexual orientation'],
