@@ -150,8 +150,8 @@ export async function runPartner(
       // Starting over keeps every scene already drafted into the book; only the plan is replaced.
       await db.from('story_plans').delete().eq('book_id', bookId)
       params = {
-        concept: input!.concept.trim().slice(0, 8000),
-        direction: (input!.direction ?? '').trim().slice(0, 4000),
+        concept: input!.concept.trim().slice(0, 20000),
+        direction: (input!.direction ?? '').trim().slice(0, 8000),
         chapters: Math.min(60, Math.max(1, Math.round(input!.chapters || 12))),
         scenesPerChapter: Math.min(8, Math.max(1, Math.round(input!.scenesPerChapter || 2))),
         wordsPerScene: Math.min(5000, Math.max(300, Math.round(input!.wordsPerScene || 1500))),

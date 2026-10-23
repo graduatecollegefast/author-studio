@@ -10,7 +10,16 @@ import { Field, Input, Textarea } from '@/components/ui/field'
 import { Spinner } from '@/components/ui/feedback'
 import { formatUsd } from '@/lib/ai/catalog'
 import { cn, formatNumber } from '@/lib/utils'
-import { getPartnerTask, listPlans, listQuestions, runPartner, setPartnerStatus, updatePlan, type PartnerInput, type StoryPlan } from '@/services/writing'
+import {
+  getPartnerTask,
+  listPlans,
+  listQuestions,
+  runPartner,
+  setPartnerStatus,
+  updatePlan,
+  type PartnerInput,
+  type StoryPlan,
+} from '@/services/writing'
 import { QuestionCard } from './QuestionCard'
 
 const STAGES: Record<string, string> = {
@@ -61,7 +70,9 @@ export function CreativePartner({ bookId, bookTitle }: { bookId: string; bookTit
   const t = task.data
   const stalled = t?.status === 'running' && Date.now() - new Date(t.updated_at).getTime() > 6 * 60 * 1000
 
-  if (!t || restarting) {
+  // A start that never got going has no progress to resume: show the form again with the reason.
+  const failedStart = t?.status === 'failed' && !t.output
+  if (!t || restarting || failedStart) {
     return (
       <Card>
         <CardHeader title={`Start a Creative Partner project for ${bookTitle}`} action={<Badge tone="ai">Uses AI</Badge>} />
@@ -73,24 +84,64 @@ export function CreativePartner({ bookId, bookTitle }: { bookId: string; bookTit
             void go(t ? 'restart' : 'start', form).then(() => setRestarting(false))
           }}
         >
+          {failedStart && t?.error && (
+            <p role="alert" className="rounded-lg border border-alert bg-alert-soft p-3 text-sm text-alert-text" data-testid="partner-start-error">
+              {t.error}
+            </p>
+          )}
           <p className="text-sm text-fg-muted">
-            The AI studies your concept and connected canon, asks what it needs to know, proposes a premise, character arcs and a full outline for your approval, then drafts the book one scene at a time. Each scene is saved into this book as a new chapter before the next begins. Your existing chapters are never changed. You can pause, edit the plan, redraft scenes or stop at any point.
+            The AI studies your concept and connected canon, asks what it needs to know, proposes a premise, character arcs and a full outline for
+            your approval, then drafts the book one scene at a time. Each scene is saved into this book as a new chapter before the next begins. Your
+            existing chapters are never changed. You can pause, edit the plan, redraft scenes or stop at any point.
           </p>
           <Field label="Book concept" htmlFor="cp-concept">
-            <Textarea id="cp-concept" className="min-h-32" value={form.concept} onChange={(e) => setForm({ ...form, concept: e.target.value })} required />
+            <Textarea
+              id="cp-concept"
+              className="min-h-32"
+              maxLength={20000}
+              value={form.concept}
+              onChange={(e) => setForm({ ...form, concept: e.target.value })}
+              required
+            />
           </Field>
-          <Field label="Creative direction (optional)" htmlFor="cp-direction" hint="Tone, heat level, ending, what to avoid, anything that matters to you.">
-            <Textarea id="cp-direction" value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })} />
+          <Field
+            label="Creative direction (optional)"
+            htmlFor="cp-direction"
+            hint="Tone, heat level, ending, what to avoid, anything that matters to you."
+          >
+            <Textarea id="cp-direction" maxLength={8000} value={form.direction} onChange={(e) => setForm({ ...form, direction: e.target.value })} />
           </Field>
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Chapters" htmlFor="cp-chapters">
-              <Input id="cp-chapters" type="number" min={1} max={60} value={form.chapters} onChange={(e) => setForm({ ...form, chapters: Number(e.target.value) })} />
+              <Input
+                id="cp-chapters"
+                type="number"
+                min={1}
+                max={60}
+                value={form.chapters}
+                onChange={(e) => setForm({ ...form, chapters: Number(e.target.value) })}
+              />
             </Field>
             <Field label="Scenes per chapter" htmlFor="cp-scenes">
-              <Input id="cp-scenes" type="number" min={1} max={8} value={form.scenesPerChapter} onChange={(e) => setForm({ ...form, scenesPerChapter: Number(e.target.value) })} />
+              <Input
+                id="cp-scenes"
+                type="number"
+                min={1}
+                max={8}
+                value={form.scenesPerChapter}
+                onChange={(e) => setForm({ ...form, scenesPerChapter: Number(e.target.value) })}
+              />
             </Field>
             <Field label="Words per scene" htmlFor="cp-words">
-              <Input id="cp-words" type="number" min={300} max={5000} step={100} value={form.wordsPerScene} onChange={(e) => setForm({ ...form, wordsPerScene: Number(e.target.value) })} />
+              <Input
+                id="cp-words"
+                type="number"
+                min={300}
+                max={5000}
+                step={100}
+                value={form.wordsPerScene}
+                onChange={(e) => setForm({ ...form, wordsPerScene: Number(e.target.value) })}
+              />
             </Field>
           </div>
           <div className="flex gap-2">
@@ -122,19 +173,48 @@ export function CreativePartner({ bookId, bookTitle }: { bookId: string; bookTit
   return (
     <div className="space-y-6">
       <Card>
-        <CardHeader title="Creative Partner" action={<Badge tone={t.status === 'failed' ? 'alert' : t.status === 'completed' ? 'progress' : 'ai'}>{t.status === 'running' && !stalled ? 'Working' : stalled ? 'Interrupted' : t.status === 'paused' ? 'Paused' : t.status === 'completed' ? 'Complete' : t.status === 'cancelled' ? 'Stopped' : t.status === 'failed' ? 'Stopped with a problem' : 'Starting'}</Badge>} />
+        <CardHeader
+          title="Creative Partner"
+          action={
+            <Badge tone={t.status === 'failed' ? 'alert' : t.status === 'completed' ? 'progress' : 'ai'}>
+              {t.status === 'running' && !stalled
+                ? 'Working'
+                : stalled
+                  ? 'Interrupted'
+                  : t.status === 'paused'
+                    ? 'Paused'
+                    : t.status === 'completed'
+                      ? 'Complete'
+                      : t.status === 'cancelled'
+                        ? 'Stopped'
+                        : t.status === 'failed'
+                          ? 'Stopped with a problem'
+                          : 'Starting'}
+            </Badge>
+          }
+        />
         <div className="space-y-3 px-5 pb-5 text-sm" data-testid="partner-status">
           <p className="font-semibold" data-testid="partner-stage">
             {STAGES[out?.stage ?? 'analyze']}
           </p>
           {out && out.scenes_total > 0 && (
             <>
-              <div className="h-1.5 overflow-hidden rounded-full bg-panel-2" role="progressbar" aria-label="Scenes drafted" aria-valuenow={out.scenes_done} aria-valuemin={0} aria-valuemax={out.scenes_total}>
+              <div
+                className="h-1.5 overflow-hidden rounded-full bg-panel-2"
+                role="progressbar"
+                aria-label="Scenes drafted"
+                aria-valuenow={out.scenes_done}
+                aria-valuemin={0}
+                aria-valuemax={out.scenes_total}
+              >
                 <div className="h-full bg-ai" style={{ width: `${Math.round((out.scenes_done / out.scenes_total) * 100)}%` }} />
               </div>
               <p className="text-fg-muted">
-                {formatNumber(out.scenes_done)} of {formatNumber(out.scenes_total)} scenes drafted · cost so far {formatUsd(Number(t.actual_cost_usd ?? 0))}
-                {out.draft_estimate_usd !== undefined && out.stage === 'awaiting_approval' ? ` · drafting all scenes is estimated at ${formatUsd(out.draft_estimate_usd)}` : ''}
+                {formatNumber(out.scenes_done)} of {formatNumber(out.scenes_total)} scenes drafted · cost so far{' '}
+                {formatUsd(Number(t.actual_cost_usd ?? 0))}
+                {out.draft_estimate_usd !== undefined && out.stage === 'awaiting_approval'
+                  ? ` · drafting all scenes is estimated at ${formatUsd(out.draft_estimate_usd)}`
+                  : ''}
               </p>
             </>
           )}
@@ -156,7 +236,10 @@ export function CreativePartner({ bookId, bookTitle }: { bookId: string; bookTit
             )}
             {editable && out?.stage === 'awaiting_answers' && (
               <Button variant="ai" disabled={busy || openQs.length > 0} onClick={() => void go('resume')}>
-                <Sparkles /> {openQs.length ? `Answer ${openQs.length} more ${openQs.length === 1 ? 'question' : 'questions'} to continue` : 'Continue to the plan'}
+                <Sparkles />{' '}
+                {openQs.length
+                  ? `Answer ${openQs.length} more ${openQs.length === 1 ? 'question' : 'questions'} to continue`
+                  : 'Continue to the plan'}
               </Button>
             )}
             {editable && out?.stage === 'awaiting_approval' && (
@@ -164,11 +247,14 @@ export function CreativePartner({ bookId, bookTitle }: { bookId: string; bookTit
                 <Check /> Approve plan and start drafting
               </Button>
             )}
-            {editable && (t.status === 'paused' || t.status === 'failed' || t.status === 'cancelled' || stalled) && out?.stage !== 'awaiting_answers' && out?.stage !== 'awaiting_approval' && (
-              <Button variant="ai" disabled={busy} onClick={() => void go('resume')}>
-                <Sparkles /> Resume
-              </Button>
-            )}
+            {editable &&
+              (t.status === 'paused' || t.status === 'failed' || t.status === 'cancelled' || stalled) &&
+              out?.stage !== 'awaiting_answers' &&
+              out?.stage !== 'awaiting_approval' && (
+                <Button variant="ai" disabled={busy} onClick={() => void go('resume')}>
+                  <Sparkles /> Resume
+                </Button>
+              )}
             {editable && t.status === 'completed' && scenes.some((s) => s.status === 'redraft') && (
               <Button variant="ai" disabled={busy} onClick={() => void go('resume')}>
                 <Sparkles /> Redraft marked scenes
@@ -216,7 +302,10 @@ export function CreativePartner({ bookId, bookTitle }: { bookId: string; bookTit
 
       {premise && (
         <Card>
-          <CardHeader title="The plan" action={editable ? <span className="text-xs text-fg-muted">Edits save when you leave a box</span> : undefined} />
+          <CardHeader
+            title="The plan"
+            action={editable ? <span className="text-xs text-fg-muted">Edits save when you leave a box</span> : undefined}
+          />
           <div className="space-y-5 px-5 pb-5 text-sm" data-testid="partner-plan">
             <PlanText plan={premise} label="Premise" editable={editable} />
             {arcs && <PlanText plan={arcs} label="Character arcs" editable={editable} />}
@@ -231,7 +320,13 @@ export function CreativePartner({ bookId, bookTitle }: { bookId: string; bookTit
                         <li key={s.id} data-testid="scene-plan">
                           <div className="mb-1 flex flex-wrap items-center gap-2">
                             <Badge tone={s.status === 'drafted' ? 'progress' : s.status === 'redraft' ? 'alert' : 'neutral'}>
-                              {s.status === 'drafted' ? 'Drafted' : s.status === 'redraft' ? 'Will be redrafted' : s.status === 'approved' ? 'Approved' : 'Planned'}
+                              {s.status === 'drafted'
+                                ? 'Drafted'
+                                : s.status === 'redraft'
+                                  ? 'Will be redrafted'
+                                  : s.status === 'approved'
+                                    ? 'Approved'
+                                    : 'Planned'}
                             </Badge>
                             {s.scene_id && (
                               <Link className="link inline-flex items-center gap-1 text-xs" to={`/books/${bookId}/write?scene=${s.scene_id}`}>
@@ -263,7 +358,13 @@ export function CreativePartner({ bookId, bookTitle }: { bookId: string; bookTit
                               </button>
                             )}
                           </div>
-                          <PlanText plan={s} label={`Scene ${(s.scene_index ?? 0) + 1}`} editable={editable && s.status !== 'drafted'} withTitle compact />
+                          <PlanText
+                            plan={s}
+                            label={`Scene ${(s.scene_index ?? 0) + 1}`}
+                            editable={editable && s.status !== 'drafted'}
+                            withTitle
+                            compact
+                          />
                         </li>
                       ))}
                   </ol>
@@ -291,7 +392,19 @@ export function CreativePartner({ bookId, bookTitle }: { bookId: string; bookTit
   )
 }
 
-function PlanText({ plan, label, editable, withTitle, compact }: { plan: StoryPlan; label: string; editable: boolean; withTitle?: boolean; compact?: boolean }) {
+function PlanText({
+  plan,
+  label,
+  editable,
+  withTitle,
+  compact,
+}: {
+  plan: StoryPlan
+  label: string
+  editable: boolean
+  withTitle?: boolean
+  compact?: boolean
+}) {
   const qc = useQueryClient()
   const [title, setTitle] = React.useState(plan.title)
   const [content, setContent] = React.useState(plan.content)
@@ -324,7 +437,13 @@ function PlanText({ plan, label, editable, withTitle, compact }: { plan: StoryPl
         </Field>
       ) : null}
       <Field label={withTitle ? `${label} plan` : label} htmlFor={`pc-${plan.id}`}>
-        <Textarea id={`pc-${plan.id}`} className={compact ? 'min-h-16' : 'min-h-24'} value={content} onChange={(e) => setContent(e.target.value)} onBlur={() => void save()} />
+        <Textarea
+          id={`pc-${plan.id}`}
+          className={compact ? 'min-h-16' : 'min-h-24'}
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          onBlur={() => void save()}
+        />
       </Field>
     </div>
   )

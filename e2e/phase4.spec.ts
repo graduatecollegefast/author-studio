@@ -36,7 +36,19 @@ test.beforeAll(async () => {
   await db.rpc('save_scene', { p_scene_id: s2, p_content: doc(long), p_content_text: long, p_expected_revision: 1 })
   ids.mara = (await db.from('characters').insert({ full_name: 'Mara Vance', occupation: 'lighthouse keeper' }).select('id').single()).data!.id
   await db.from('character_appearances').insert({ character_id: ids.mara, book_id: ids.book })
-  await db.from('canon_facts').insert({ book_id: ids.book, entity_type: 'character', entity_id: ids.mara, entity_label: 'Mara Vance', attribute: 'occupation', value: 'lighthouse keeper', statement_type: 'narrator', status: 'approved', category: 'character' })
+  await db
+    .from('canon_facts')
+    .insert({
+      book_id: ids.book,
+      entity_type: 'character',
+      entity_id: ids.mara,
+      entity_label: 'Mara Vance',
+      attribute: 'occupation',
+      value: 'lighthouse keeper',
+      statement_type: 'narrator',
+      status: 'approved',
+      category: 'character',
+    })
 })
 
 test.afterAll(async () => {
@@ -191,7 +203,10 @@ test('style profiles: analyze my voice, edit preferences, compare, use for draft
     await d.getByRole('button', { name: 'Create' }).click()
     await expect(d).toBeHidden()
   }
-  const card = page.getByTestId('style-profiles').getByRole('listitem').filter({ has: page.getByRole('heading', { name: 'My voice', exact: true }) })
+  const card = page
+    .getByTestId('style-profiles')
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('heading', { name: 'My voice', exact: true }) })
   await card.getByRole('button', { name: 'Analyze my voice' }).click()
   await expect(page.getByText('Style profile updated from your writing')).toBeVisible({ timeout: 30_000 })
   await expect(card.getByTestId('style-summary')).toContainText('Short, rhythmic sentences')
@@ -248,7 +263,10 @@ test('creative partner: questions, editable plan, approval, scene-by-scene draft
   test.setTimeout(120_000)
   await signIn(page)
   await page.goto(`/partner?book=${ids.partnerBook}`)
-  await page.getByLabel('Book concept').fill('Two estranged sisters inherit a lighthouse.')
+  // A long, pasted concept (larger than the old 16 KB request limit) must still start the job.
+  await page
+    .getByLabel('Book concept')
+    .fill('Two estranged sisters inherit a lighthouse. ' + 'They argue about who keeps the light burning. '.repeat(400))
   await page.getByLabel('Chapters').fill('2')
   await page.getByLabel('Scenes per chapter').fill('1')
   await page.getByLabel('Words per scene').fill('300')
@@ -272,15 +290,26 @@ test('creative partner: questions, editable plan, approval, scene-by-scene draft
 
   const { data: chapters } = await db.from('chapters').select('title, scenes(title, content_text)').eq('book_id', ids.partnerBook).order('position')
   expect(chapters!.map((c) => c.title)).toEqual(['Mock Chapter 1', 'Mock Chapter 2'])
-  expect((chapters![0].scenes as Array<{ title: string; content_text: string }>)[0]).toEqual({ title: 'The reading of the will', content_text: 'Mock scene: The reading of the will.\n\nThe tide turned slowly against the pier.' })
+  expect((chapters![0].scenes as Array<{ title: string; content_text: string }>)[0]).toEqual({
+    title: 'The reading of the will',
+    content_text: 'Mock scene: The reading of the will.\n\nThe tide turned slowly against the pier.',
+  })
 
   // Redraft one scene: the earlier draft is kept in its history.
   await page.getByTestId('scene-plan').first().getByRole('button', { name: 'Mark for redraft' }).click()
   await page.getByRole('button', { name: 'Redraft marked scenes' }).click()
   await expect(page.getByRole('button', { name: 'Redraft marked scenes' })).toHaveCount(0, { timeout: 60_000 })
   await expect(page.getByTestId('partner-stage')).toHaveText('Draft complete')
-  const { data: plan } = await db.from('story_plans').select('scene_id').eq('book_id', ids.partnerBook).eq('kind', 'scene').eq('chapter_index', 0).single()
+  const { data: plan } = await db
+    .from('story_plans')
+    .select('scene_id')
+    .eq('book_id', ids.partnerBook)
+    .eq('kind', 'scene')
+    .eq('chapter_index', 0)
+    .single()
   await expect
-    .poll(async () => ((await db.from('scene_versions').select('label').eq('scene_id', plan!.scene_id)).data ?? []).map((v) => v.label), { timeout: 30_000 })
+    .poll(async () => ((await db.from('scene_versions').select('label').eq('scene_id', plan!.scene_id)).data ?? []).map((v) => v.label), {
+      timeout: 30_000,
+    })
     .toContain('Before Creative Partner redraft')
 })
