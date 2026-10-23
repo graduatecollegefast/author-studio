@@ -1,8 +1,8 @@
 import * as React from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { ArrowLeft, Plus, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Merge, Plus, Trash2, X } from 'lucide-react'
 import { PageBody } from '@/components/layout/AppShell'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader } from '@/components/ui/card'
@@ -10,6 +10,7 @@ import { ConfirmDialog } from '@/components/ui/dialog'
 import { Field, Input, Textarea } from '@/components/ui/field'
 import { ErrorState, PageLoader } from '@/components/ui/feedback'
 import { CanonList, useBookTitles } from '@/components/bible/Evidence'
+import { MergeCharactersDialog } from '@/components/bible/MergeCharactersDialog'
 import { attributeLabel } from '@/components/analysis/DiscoveryReview'
 import {
   APPEARANCE_FIELDS,
@@ -54,7 +55,14 @@ function toDraft(c: Character): Draft {
   }
 }
 
-const splitList = (s: string) => [...new Set(s.split(',').map((x) => x.trim()).filter(Boolean))]
+const splitList = (s: string) => [
+  ...new Set(
+    s
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean),
+  ),
+]
 const compact = (o: Record<string, string>) => Object.fromEntries(Object.entries(o).filter(([, v]) => v && v.trim()))
 
 export function CharacterDetailPage() {
@@ -70,13 +78,21 @@ export function CharacterDetailPage() {
   const [draft, setDraft] = React.useState<Draft | null>(null)
   const [saving, setSaving] = React.useState(false)
   const [confirmDelete, setConfirmDelete] = React.useState(false)
+  const [params, setParams] = useSearchParams()
+  const mergeParam = params.get('merge')
+  const [merging, setMerging] = React.useState(Boolean(mergeParam))
 
   React.useEffect(() => {
     if (character.data) setDraft(toDraft(character.data))
   }, [character.data])
 
   if (character.isLoading || !draft) {
-    if (character.error) return <PageBody><ErrorState error={character.error} onRetry={() => void character.refetch()} /></PageBody>
+    if (character.error)
+      return (
+        <PageBody>
+          <ErrorState error={character.error} onRetry={() => void character.refetch()} />
+        </PageBody>
+      )
     return <PageLoader label="Loading character" />
   }
 
@@ -158,6 +174,9 @@ export function CharacterDetailPage() {
           </p>
         </div>
         <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setMerging(true)}>
+            <Merge /> Merge duplicates
+          </Button>
           <Button variant="secondary" onClick={() => setConfirmDelete(true)}>
             <Trash2 /> Delete
           </Button>
@@ -173,7 +192,11 @@ export function CharacterDetailPage() {
           <div className="grid gap-4 px-5 pb-5 sm:grid-cols-2 lg:grid-cols-3">
             {IDENTITY.map(([k, label]) => (
               <Field key={k} label={label} htmlFor={`id-${k}`}>
-                <Input id={`id-${k}`} value={(draft[k as keyof Draft] as string | null) ?? ''} onChange={(e) => set(k as keyof Draft, e.target.value as never)} />
+                <Input
+                  id={`id-${k}`}
+                  value={(draft[k as keyof Draft] as string | null) ?? ''}
+                  onChange={(e) => set(k as keyof Draft, e.target.value as never)}
+                />
               </Field>
             ))}
             <Field label="Nicknames" htmlFor="id-nicknames" hint="Separate with commas">
@@ -201,9 +224,40 @@ export function CharacterDetailPage() {
           <div className="space-y-3 px-5 pb-5">
             {draft.custom.map((c, i) => (
               <div key={i} className="flex gap-2">
-                <Input aria-label="Field name" placeholder="Field" className="max-w-48" value={c.key} onChange={(e) => set('custom', draft.custom.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))} />
-                <Input aria-label="Field value" placeholder="Value" value={c.value} onChange={(e) => set('custom', draft.custom.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
-                <Button size="icon" variant="ghost" aria-label="Remove field" onClick={() => set('custom', draft.custom.filter((_, j) => j !== i))}>
+                <Input
+                  aria-label="Field name"
+                  placeholder="Field"
+                  className="max-w-48"
+                  value={c.key}
+                  onChange={(e) =>
+                    set(
+                      'custom',
+                      draft.custom.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)),
+                    )
+                  }
+                />
+                <Input
+                  aria-label="Field value"
+                  placeholder="Value"
+                  value={c.value}
+                  onChange={(e) =>
+                    set(
+                      'custom',
+                      draft.custom.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)),
+                    )
+                  }
+                />
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label="Remove field"
+                  onClick={() =>
+                    set(
+                      'custom',
+                      draft.custom.filter((_, j) => j !== i),
+                    )
+                  }
+                >
                   <X />
                 </Button>
               </div>
@@ -277,6 +331,25 @@ export function CharacterDetailPage() {
           </div>
         </Card>
       </div>
+
+      <MergeCharactersDialog
+        open={merging}
+        onOpenChange={(o) => {
+          setMerging(o)
+          if (!o && mergeParam) setParams({}, { replace: true })
+        }}
+        keep={{
+          id: characterId,
+          full_name: character.data!.full_name,
+          preferred_name: character.data!.preferred_name,
+          aliases: character.data!.aliases ?? [],
+        }}
+        preselected={mergeParam ? mergeParam.split(',') : []}
+        onMerged={(n) => {
+          toast.success(`${n} ${n === 1 ? 'character was' : 'characters were'} merged into ${character.data!.full_name}.`)
+          void qc.invalidateQueries()
+        }}
+      />
 
       <ConfirmDialog
         open={confirmDelete}

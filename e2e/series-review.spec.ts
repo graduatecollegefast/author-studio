@@ -110,3 +110,38 @@ test('series review: shared characters, linking, and quoted conflicts with the e
   await page.goto(`/partner?tab=series&book=${ids.b2}`)
   await expect(page.getByText('No open findings')).toBeVisible()
 })
+
+test('merge duplicates: from the series review warning or a character page, with confirmation', async ({ page }) => {
+  await signIn(page)
+  await page.goto(`/partner?tab=series&book=${ids.b2}`)
+  await page.getByRole('link', { name: 'Merge Eli Stone' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Merge into Eli Stone' })
+  await expect(dialog).toBeVisible()
+  const candidates = dialog.getByTestId('merge-candidates')
+  // The other Eli Stone is first, marked, and already ticked.
+  await expect(candidates.getByRole('listitem').first()).toContainText('Same name')
+  await expect(candidates.getByRole('checkbox').first()).toBeChecked()
+  await expectAccessible(page)
+  await dialog.getByRole('button', { name: 'Continue' }).click()
+  await expect(dialog.getByTestId('merge-confirm')).toContainText('A full copy of each is kept in your activity history.')
+  await dialog.getByRole('button', { name: 'Merge 1 into Eli Stone' }).click()
+  await expect(page.getByText('1 character was merged into Eli Stone.')).toBeVisible()
+  expect((await db.from('characters').select('id').eq('full_name', 'Eli Stone')).data).toHaveLength(1)
+
+  // The warning is gone once the duplicate is merged.
+  await page.goto(`/partner?tab=series&book=${ids.b2}`)
+  await expect(page.getByTestId('shared-characters')).toBeVisible()
+  await expect(page.getByTestId('duplicates')).toHaveCount(0)
+
+  // From a character page: search, pick, go back, cancel. Nothing changes.
+  await page.goto(`/characters/${ids.mara}`)
+  await page.getByRole('button', { name: 'Merge duplicates' }).click()
+  const d2 = page.getByRole('dialog', { name: 'Merge into Mara Vance' })
+  await expect(d2.getByRole('button', { name: 'Continue' })).toBeDisabled()
+  await d2.getByLabel('Find characters').fill('Eli')
+  await d2.getByRole('checkbox').first().check()
+  await d2.getByRole('button', { name: 'Continue' }).click()
+  await d2.getByRole('button', { name: 'Back' }).click()
+  await d2.getByRole('button', { name: 'Cancel' }).click()
+  expect((await db.from('characters').select('id')).data).toHaveLength(2)
+})

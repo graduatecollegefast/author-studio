@@ -560,3 +560,47 @@ test('delete_my_account removes the signed-in account and everything it owns, an
   assert.deepEqual((await admin.from('chapters').select('id').eq('owner_id', c.id)).data, [])
   assert.equal((await users.a.client.from('profiles').select('id').eq('id', users.a.id).single()).error, null, 'other accounts are untouched')
 })
+
+test('merge_characters folds duplicates into one record and moves every link', async () => {
+  const c = users.a.client
+  const { data: book } = await c.from('books').insert({ title: `Merge ${run}` }).select('id').single()
+  const ch = (await c.rpc('create_chapter', { p_book_id: book.id, p_title: 'One' })).data
+  const scene = (await c.from('scenes').select('id').eq('chapter_id', ch).single()).data
+  const mk = async (row) => (await c.from('characters').insert(row).select('id').single()).data.id
+  const keep = await mk({ full_name: 'Ada Wren', occupation: 'pilot', appearance: { eyes: 'grey' }, notes: 'Kept notes.' })
+  const dup = await mk({ full_name: 'Ada Wren', preferred_name: 'Addie', age: '34', appearance: { eyes: 'blue', hair: 'red' }, nicknames: ['Wrenny'], notes: 'Dup notes.' })
+  const friend = await mk({ full_name: 'Bo Hale' })
+  await c.from('character_appearances').insert([{ character_id: keep, book_id: book.id }, { character_id: dup, book_id: book.id }, { character_id: dup, book_id: book.id, chapter_id: ch }])
+  await c.from('relationships').insert([{ character_a_id: dup, character_b_id: friend, category: 'friendship' }, { character_a_id: keep, character_b_id: dup, category: 'family' }])
+  await c.from('character_states').insert({ character_id: dup, book_id: book.id, attribute: 'occupation', value: 'student' })
+  await c.from('scenes').update({ pov_character_id: dup }).eq('id', scene.id)
+  const { data: fact } = await c.from('canon_facts').insert({ book_id: book.id, entity_type: 'character', entity_id: dup, entity_label: 'Ada Wren', attribute: 'age', value: '34', statement_type: 'narrator', status: 'proposed', category: 'character', payload: { with: dup } }).select('id').single()
+
+  assert.ok((await users.b.client.rpc('merge_characters', { p_keep: keep, p_merge: [dup] })).error, 'another author cannot merge these')
+  assert.ok((await c.rpc('merge_characters', { p_keep: keep, p_merge: [keep] })).error, 'cannot merge a character into itself')
+
+  const { error } = await c.rpc('merge_characters', { p_keep: keep, p_merge: [dup] })
+  assert.equal(error, null)
+  const k = (await c.from('characters').select('*').eq('id', keep).single()).data
+  assert.equal(k.occupation, 'pilot', 'kept details win')
+  assert.equal(k.age, '34', 'blanks are filled')
+  assert.equal(k.preferred_name, 'Addie')
+  assert.deepEqual(k.appearance, { eyes: 'grey', hair: 'red' })
+  assert.deepEqual(k.nicknames, ['Wrenny'])
+  assert.match(k.notes, /Kept notes\.[\s\S]*Dup notes\./)
+  assert.deepEqual((await c.from('characters').select('id').eq('id', dup)).data, [], 'the duplicate record is gone')
+  const apps = (await c.from('character_appearances').select('character_id, chapter_id').eq('book_id', book.id)).data
+  assert.equal(apps.length, 2, 'the same appearance is kept once')
+  assert.ok(apps.every((a) => a.character_id === keep))
+  const rels = (await c.from('relationships').select('character_a_id, character_b_id').or(`character_a_id.eq.${keep},character_b_id.eq.${keep}`)).data
+  assert.deepEqual(rels, [{ character_a_id: keep, character_b_id: friend }], 'the relationship to itself is removed, others move')
+  assert.equal((await c.from('character_states').select('character_id').eq('book_id', book.id).single()).data.character_id, keep)
+  assert.equal((await c.from('scenes').select('pov_character_id').eq('id', scene.id).single()).data.pov_character_id, keep)
+  const f = (await c.from('canon_facts').select('entity_id, payload').eq('id', fact.id).single()).data
+  assert.equal(f.entity_id, keep)
+  assert.deepEqual(f.payload, { with: keep })
+  const log = (await c.from('activity_log').select('metadata').eq('action', 'character.merged').eq('entity_id', keep).single()).data
+  assert.equal(log.metadata.merged.id, dup, 'a full copy of the merged record is kept')
+  assert.equal(log.metadata.merged.notes, 'Dup notes.')
+  await c.from('books').delete().eq('id', book.id)
+})

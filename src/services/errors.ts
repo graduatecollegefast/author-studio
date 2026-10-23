@@ -19,6 +19,8 @@ const FRIENDLY: Record<string, string> = {
   SCENE_NOT_FOUND: 'This scene no longer exists.',
   LAST_SCENE: 'A chapter needs at least one scene. Delete the chapter instead.',
   REORDER_MISMATCH: 'The order changed while you were moving items. Refresh and try again.',
+  INVALID_MERGE: 'Choose at least one other character to merge.',
+  CHARACTER_NOT_FOUND: 'One of these characters no longer exists. Refresh and try again.',
   INVALID_CONTENT: 'The editor content could not be saved because it was not valid.',
 }
 

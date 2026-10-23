@@ -68,5 +68,9 @@ Palette, semantic color roles, three writing modes, typography controls, daily g
 - Free: lists the characters from earlier books who appear in this book (by name, alias or nickname), how often, and whether they are linked to this book; links them in one click; flags duplicate character records; shows how many discoveries in earlier books still wait for review.
 - AI: for each chosen character, their profile, approved canon and passages from the earlier books are compared with every passage that mentions them now; then each chapter is compared with the earlier passages that share its names and places. Each finding quotes both books word for word (anything that cannot be found is dropped), is saved as a continuity finding, and appears here, in the Continuity Checker and in the Editorial Studio. Nothing in the books, canon or profiles changes. Resumable, with an estimate first and the usual spending limits.
 
+## Merge characters
+- Character page > Merge duplicates (also linked from the series review's duplicate warning). Pick the records that are the same person; matching names are listed first. A confirmation step explains what happens.
+- `merge_characters()` runs in one transaction as the author: the kept profile wins, blanks are filled from the others, their names become aliases and their notes are appended; book appearances, history, relationships, groups, timeline events, world links, ideas, POV, canon facts and discoveries move to the kept record; a relationship between the two records is removed; a full copy of each merged record is saved in the activity log; then the merged records are removed.
+
 ## Phase 6
 As defined in the specification: find and replace, drag-and-drop reordering, resizable panels, polish, audits, and full test coverage.

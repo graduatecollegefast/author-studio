@@ -210,14 +210,17 @@ export function SeriesReview({ bookId }: { bookId: string }) {
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
                 <div>
                   <p className="font-semibold">Possible duplicate character records</p>
-                  <p>
-                    {s.duplicates.map((d) => `${d.name} (${d.ids.length} records)`).join(', ')}. Two records for one person can hold different
-                    details. Open the{' '}
-                    <Link to="/characters" className="link">
-                      Character Bible
-                    </Link>{' '}
-                    to compare them and keep one.
-                  </p>
+                  <p>Two records for one person can hold different details. Merge them into one.</p>
+                  <ul className="mt-1 space-y-1">
+                    {s.duplicates.map((d) => (
+                      <li key={d.ids.join()}>
+                        {d.name} ({d.ids.length} records){' '}
+                        <Link to={`/characters/${d.ids[0]}?merge=${d.ids.slice(1).join(',')}`} className="link font-semibold">
+                          Merge {d.name}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             )}

@@ -117,6 +117,28 @@ export async function deleteCharacter(id: string) {
   await logActivity('character.deleted', 'character', id, {})
 }
 
+/**
+ * Merge duplicate characters into `keepId`. The kept profile wins; missing details are filled
+ * from the others, their names become aliases, and every link moves to the kept character.
+ * A full copy of each merged record is saved in the activity log first.
+ */
+export async function mergeCharacters(keepId: string, mergeIds: string[]): Promise<void> {
+  const { error } = await supabase.rpc('merge_characters', { p_keep: keepId, p_merge: mergeIds })
+  throwIfError(error)
+}
+
+/** Characters that look like the same person: same name, or one's name is the other's alias. */
+export function likelyDuplicates(
+  target: { id: string; full_name: string; preferred_name?: string | null; aliases?: string[] },
+  all: CharacterListItem[],
+): string[] {
+  const norm = (s: string | null | undefined) => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ')
+  const mine = new Set([target.full_name, target.preferred_name, ...(target.aliases ?? [])].map(norm).filter(Boolean))
+  return all
+    .filter((c) => c.id !== target.id && [c.full_name, c.preferred_name, ...(c.aliases ?? [])].map(norm).some((n) => n && mine.has(n)))
+    .map((c) => c.id)
+}
+
 export interface CanonFact {
   id: string
   attribute: string
@@ -131,7 +153,9 @@ export interface CanonFact {
 export async function approvedFactsFor(entityType: string, entityId: string): Promise<CanonFact[]> {
   const { data, error } = await supabase
     .from('canon_facts')
-    .select('id, attribute, value, statement_type, confidence, book_id, approved_at, fact_sources(id, location_label, excerpt, char_start, char_end, manuscript_file_id, book_id)')
+    .select(
+      'id, attribute, value, statement_type, confidence, book_id, approved_at, fact_sources(id, location_label, excerpt, char_start, char_end, manuscript_file_id, book_id)',
+    )
     .eq('entity_type', entityType)
     .eq('entity_id', entityId)
     .eq('status', 'approved')
@@ -233,7 +257,10 @@ export interface WorldElement {
   updated_at: string
 }
 
-export async function listWorldElements(search = '', category = ''): Promise<Array<WorldElement & { world_element_links: Array<{ book_id: string | null }> }>> {
+export async function listWorldElements(
+  search = '',
+  category = '',
+): Promise<Array<WorldElement & { world_element_links: Array<{ book_id: string | null }> }>> {
   let q = supabase.from('world_elements').select('*, world_element_links(book_id)').order('name').limit(2000)
   if (category) q = q.eq('category', category)
   const s = search.trim().replace(/[%_,()]/g, ' ')
