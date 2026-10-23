@@ -54,5 +54,14 @@ Palette, semantic color roles, three writing modes, typography controls, daily g
 - Ideas Vault: title, description, category, tags, characters, related book, series and universe, status and date. AI suggests connections to existing projects; ideas turn into a new book, character, plot thread or scene.
 - Declined requests explain the limit and are never sent to another provider.
 
-## Phase 5 to 6
-As defined in the specification: editorial studio and exports; polish, audits, and full test coverage.
+## Phase 5: Editorial Studio and exports (complete)
+- Editorial Studio: Developmental, Line Editing, Copyediting, Dialogue, Continuity and Reader Perspective reviews of the whole book or chosen chapters, with a cost estimate first, progress, stop and resume, and the same spending limits as other AI work.
+- Every finding shows the exact passage it is about, its chapter and scene, severity, category, what the issue is and why the change helps. Findings whose passage is not word for word in the chapter are dropped. A finding is never shown twice.
+- Suggested revisions are approved, edited then approved, or rejected one at a time. Approving replaces only that passage inside its paragraph, keeps the surrounding bold and italic, saves the scene before the change as a "Before editorial revision" version, and saves the result as a new revision. If the passage changed since the review, nothing is applied. The whole manuscript is never replaced.
+- Exports in DOCX, EPUB, PDF (6 x 9 inch, embedded Newsreader font), TXT and Markdown: complete manuscript, chosen chapters, book outline, character profiles, Character Bible, World Bible, series overview, story timeline and project notes. Chapter order and titles, paragraphs, scene breaks, bold and italic are kept.
+- Download history: every export is kept in a private storage folder to download again or remove.
+- Complete project backup: one ZIP with every table of the author's work (books, chapters, scenes, versions, Story Bible, timelines, relationships, ideas, notes, reviews, settings) plus uploaded manuscripts and covers. Restore adds the whole backup as a copy with new ids and its files; it never replaces or removes anything, and a failed restore removes what it added.
+- Account deletion in Settings: typed confirmation, removes stored files, then the account and everything it owns.
+
+## Phase 6
+As defined in the specification: find and replace, drag-and-drop reordering, resizable panels, polish, audits, and full test coverage.

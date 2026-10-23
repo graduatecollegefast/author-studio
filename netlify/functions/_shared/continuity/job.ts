@@ -49,7 +49,9 @@ async function load(db: SupabaseClient, bookId: string): Promise<Loaded> {
   for (let from = 0; ; from += 1000) {
     const { data } = await db
       .from('canon_facts')
-      .select('id, book_id, entity_type, entity_id, entity_label, attribute, value, statement_type, payload, fact_sources(excerpt, location_label, book_id)')
+      .select(
+        'id, book_id, entity_type, entity_id, entity_label, attribute, value, statement_type, payload, fact_sources(excerpt, location_label, book_id)',
+      )
       .in('book_id', relatedBookIds)
       .eq('status', 'approved')
       .in('entity_type', ['character', 'relationship', 'world_element', 'story_event'])
@@ -82,7 +84,9 @@ function chapterText(c: Chapter): { text: string; spans: Array<{ sceneId: string
 }
 
 const inputTokens = (text: string, ctx: ContextFact[]) =>
-  estimateTokens(CONTINUITY_SYSTEM.length + JSON.stringify(CONTINUITY_SCHEMA).length + text.length + ctx.reduce((n, c) => n + c.line.length + 1, 0) + 200)
+  estimateTokens(
+    CONTINUITY_SYSTEM.length + JSON.stringify(CONTINUITY_SCHEMA).length + text.length + ctx.reduce((n, c) => n + c.line.length + 1, 0) + 200,
+  )
 
 function routeCost(route: Route | null, input: number, output: number) {
   const m = route && findModel(route.provider, route.model)
@@ -100,7 +104,11 @@ export function verifyFindings(
   const findings: Array<FindingDraft & { chapter_id: string; scene_id: string | null }> = []
   let unverified = 0
   for (const f of Array.isArray(out?.findings) ? out.findings.slice(0, 20) : []) {
-    const refs = (Array.isArray(f.canon_refs) ? f.canon_refs : []).map((r) => String(r).replace(/[[\]\s]/g, '').toUpperCase())
+    const refs = (Array.isArray(f.canon_refs) ? f.canon_refs : []).map((r) =>
+      String(r)
+        .replace(/[[\]\s]/g, '')
+        .toUpperCase(),
+    )
     const cited = refs.map((r) => byRef.get(r)).filter((x): x is CanonFactRow => Boolean(x))
     const at = locateExcerpt(chapter.text, String(f.conflicting_excerpt ?? ''))
     if (!cited.length || !at) {
@@ -199,6 +207,8 @@ export interface ContinuityOutputState {
   unverified_dropped: number
   declined: number
   canon_checked: boolean
+  /** Chapters chosen for this run; null means the whole book. */
+  chapter_ids?: string[] | null
   model?: string
 }
 
@@ -216,7 +226,9 @@ async function saveFindings(
     .eq('book_id', bookId)
     .eq('review_type', 'continuity')
     .limit(5000)
-  const seen = new Set((existing ?? []).map((e) => `${e.category}|${(e.conflicting_evidence ?? '').toLowerCase()}|${e.conflicting_evidence ? '' : e.description}`))
+  const seen = new Set(
+    (existing ?? []).map((e) => `${e.category}|${(e.conflicting_evidence ?? '').toLowerCase()}|${e.conflicting_evidence ? '' : e.description}`),
+  )
   const rows = drafts
     .filter((d) => {
       const k = `${d.category}|${d.conflicting_evidence.toLowerCase()}|${d.conflicting_evidence ? '' : d.description}`
@@ -250,28 +262,45 @@ export async function runContinuity(
   db: SupabaseClient,
   bookId: string,
   action: 'start' | 'resume' | 'restart',
-  ctx: { continueLater?: () => Promise<void>; now?: () => number } = {},
+  ctx: { continueLater?: () => Promise<void>; now?: () => number; chapterIds?: string[] | null } = {},
 ): Promise<{ status: string }> {
   const now = ctx.now ?? Date.now
   const startedAt = now()
   const key = continuityKey(bookId)
   let { data: task } = await db.from('ai_tasks').select('*').eq('idempotency_key', key).maybeSingle()
   if (!task) {
-    const ins = await db.from('ai_tasks').insert({ task_type: 'continuity_check', idempotency_key: key, book_id: bookId, status: 'queued' }).select('*').single()
+    const ins = await db
+      .from('ai_tasks')
+      .insert({ task_type: 'continuity_check', idempotency_key: key, book_id: bookId, status: 'queued' })
+      .select('*')
+      .single()
     task = ins.error ? (await db.from('ai_tasks').select('*').eq('idempotency_key', key).single()).data : ins.data
   }
   if (!task) throw new HttpError(500, 'Could not create the continuity job.')
   if (task.locked_at && now() - new Date(task.locked_at).getTime() < STALE_LOCK_MS) return { status: 'already_running' }
-  const claimQ = db.from('ai_tasks').update({ locked_at: new Date(now()).toISOString() }).eq('id', task.id)
+  const claimQ = db
+    .from('ai_tasks')
+    .update({ locked_at: new Date(now()).toISOString() })
+    .eq('id', task.id)
   const claim = await (task.locked_at ? claimQ.eq('locked_at', task.locked_at) : claimQ.is('locked_at', null)).select('id')
   if (!claim.data?.length) return { status: 'already_running' }
-  const release = (patch: Record<string, unknown>) => db.from('ai_tasks').update({ ...patch, locked_at: null }).eq('id', task!.id)
+  const release = (patch: Record<string, unknown>) =>
+    db
+      .from('ai_tasks')
+      .update({ ...patch, locked_at: null })
+      .eq('id', task!.id)
 
   try {
+    const fresh = action === 'restart' || (action === 'start' && Boolean(ctx.chapterIds?.length)) || !task.output || task.status === 'completed'
+    const chapterIds = fresh
+      ? ctx.chapterIds?.length
+        ? ctx.chapterIds
+        : null
+      : ((task.output as Partial<ContinuityOutputState>).chapter_ids ?? null)
     const l = await load(db, bookId)
+    if (chapterIds) l.chapters = l.chapters.filter((c) => chapterIds.includes(c.id))
     const settings = await loadSettings(db)
     const route = resolveRoute('continuity_check', settings.routing, availableProviders())
-    const fresh = action === 'restart' || !task.output || task.status === 'completed'
     if (action === 'restart') {
       await db.from('editorial_findings').delete().eq('book_id', bookId).eq('review_type', 'continuity').eq('status', 'open')
     }
@@ -283,6 +312,7 @@ export async function runContinuity(
       unverified_dropped: prev.unverified_dropped ?? 0,
       declined: prev.declined ?? 0,
       canon_checked: prev.canon_checked ?? false,
+      chapter_ids: chapterIds,
       model: route?.model,
     }
     let spentTask = fresh ? 0 : Number(task.actual_cost_usd ?? 0)
@@ -317,7 +347,11 @@ export async function runContinuity(
     for (const t of todo) if (!t.ctx.length) out.done.push(t.c.id) // nothing to compare against: free skip
     const aiTodo = todo.filter((t) => t.ctx.length)
     if (aiTodo.length && !route) {
-      await release({ status: 'failed', output: out, error: 'AI is not set up on the server yet. Add ANTHROPIC_API_KEY or OPENAI_API_KEY to the Netlify environment variables.' })
+      await release({
+        status: 'failed',
+        output: out,
+        error: 'AI is not set up on the server yet. Add ANTHROPIC_API_KEY or OPENAI_API_KEY to the Netlify environment variables.',
+      })
       return { status: 'failed' }
     }
     const remaining = aiTodo.reduce((n, t) => n + routeCost(route, inputTokens(t.text, t.ctx), EST_OUTPUT), 0)
@@ -356,7 +390,12 @@ export async function runContinuity(
               taskId: task!.id,
               request: {
                 system: CONTINUITY_SYSTEM,
-                input: continuityInput(l.book.title, t.c.title, t.text, t.ctx.map((x) => x.line)),
+                input: continuityInput(
+                  l.book.title,
+                  t.c.title,
+                  t.text,
+                  t.ctx.map((x) => x.line),
+                ),
                 schema: CONTINUITY_SCHEMA as unknown as Record<string, unknown>,
                 schemaName: 'continuity_findings',
                 maxOutputTokens: 4000,
@@ -369,7 +408,15 @@ export async function runContinuity(
             const cost = (err as { cost?: number }).cost ?? 0
             if (err instanceof ProviderDeclined) return { id: t.c.id, cost, saved: 0, unverified: 0, declined: true }
             console.error('continuity chapter failed', err instanceof Error ? err.name + ': ' + err.message.slice(0, 200) : 'unknown')
-            return { id: null, cost, saved: 0, unverified: 0, declined: false, fatal: err instanceof ProviderError && !err.retryable, message: err instanceof ProviderError ? err.message : 'A chapter could not be checked.' }
+            return {
+              id: null,
+              cost,
+              saved: 0,
+              unverified: 0,
+              declined: false,
+              fatal: err instanceof ProviderError && !err.retryable,
+              message: err instanceof ProviderError ? err.message : 'A chapter could not be checked.',
+            }
           }
         }),
       )
@@ -386,7 +433,12 @@ export async function runContinuity(
       }
       await db
         .from('ai_tasks')
-        .update({ output: out, completed_steps: out.done.length + 1, actual_cost_usd: Number(spentTask.toFixed(6)), locked_at: new Date(now()).toISOString() })
+        .update({
+          output: out,
+          completed_steps: out.done.length + 1,
+          actual_cost_usd: Number(spentTask.toFixed(6)),
+          locked_at: new Date(now()).toISOString(),
+        })
         .eq('id', task.id)
     }
 
@@ -406,7 +458,11 @@ export async function runContinuity(
     }
     const left = l.chapters.filter((c) => !out.done.includes(c.id)).length
     if (stop === 'fatal' || left) {
-      await release({ ...base, status: 'failed', error: stop === 'fatal' ? stopMessage : `${left} ${left === 1 ? 'chapter' : 'chapters'} could not be checked. Resume to try again.` })
+      await release({
+        ...base,
+        status: 'failed',
+        error: stop === 'fatal' ? stopMessage : `${left} ${left === 1 ? 'chapter' : 'chapters'} could not be checked. Resume to try again.`,
+      })
       return { status: 'failed' }
     }
     await release({
@@ -414,7 +470,9 @@ export async function runContinuity(
       status: 'completed',
       completed_steps: l.chapters.length + 1,
       completed_at: new Date(now()).toISOString(),
-      error: out.declined ? `${out.declined} ${out.declined === 1 ? 'chapter was' : 'chapters were'} declined by the AI provider and not checked.` : null,
+      error: out.declined
+        ? `${out.declined} ${out.declined === 1 ? 'chapter was' : 'chapters were'} declined by the AI provider and not checked.`
+        : null,
     })
     return { status: 'completed' }
   } catch (err) {

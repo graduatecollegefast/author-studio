@@ -17,7 +17,7 @@ SUPABASE_URL=...  SUPABASE_ANON_KEY=...  SUPABASE_SERVICE_ROLE_KEY=...
 
 Accessibility: `e2e/design.spec.ts` runs axe (WCAG 2.0/2.1 A and AA) on every page in dark and light themes and on the Writing Studio in all three modes, and fails on contrast that axe cannot verify. `src/styles/tokens.test.ts` checks every declared color pair against WCAG ratios (manuscript text at 7:1).
 
-## Last verified run (Phase 4 complete)
-Fresh database built from all 10 migrations, then: typecheck pass, 187/187 unit, 22/22 database/RLS, 19/19 end to end (accessibility on every page in both themes, including the AI Writing Partner, Questions, Style profiles and Ideas Vault), production build pass.
+## Last verified run (Phase 5 complete)
+Fresh database built from all 11 migrations, then: typecheck pass, 200/200 unit (including every export format, editorial revision replacement and backup id mapping), 24/24 database/RLS (export bucket and history privacy, account deletion), 23/23 end to end (Editorial Studio approve, edit and reject; all five export formats; backup and restore; account deletion; accessibility on every page in both themes), production build pass.
 
 The end to end suite starts the functions server with `AI_MOCK=1`, so no provider key or spending is needed.

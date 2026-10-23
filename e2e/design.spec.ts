@@ -65,10 +65,10 @@ test('every page passes WCAG AA checks in dark and light themes, and all three w
 
   for (const theme of ['dark', 'light'] as const) {
     await page.goto('/settings')
-    await page.getByRole('combobox', { name: 'Theme' }).selectOption(theme)
+    await page.getByRole('combobox', { name: 'Theme', exact: true }).selectOption(theme)
     await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(theme === 'dark')
     await expectAccessible(page, `settings (${theme})`)
-    for (const path of ['/', '/library', bookUrl, `${bookUrl}?tab=files`, `${bookUrl}?tab=details`, `${bookUrl}?tab=analysis`, '/studio', '/characters', '/world', '/series', '/relationships', '/timelines', '/continuity', '/partner', '/partner?tab=questions', '/partner?tab=style', '/ideas']) {
+    for (const path of ['/', '/library', bookUrl, `${bookUrl}?tab=files`, `${bookUrl}?tab=details`, `${bookUrl}?tab=analysis`, '/studio', '/characters', '/world', '/series', '/relationships', '/timelines', '/continuity', '/partner', '/partner?tab=questions', '/partner?tab=style', '/ideas', '/editorial', '/exports']) {
       await page.goto(path)
       await expectAccessible(page, `${path} (${theme})`)
     }
@@ -153,7 +153,7 @@ test('typography controls, daily goal, and session counter', async ({ page }) =>
 test('a preference changed right before leaving the page is kept', async ({ page }) => {
   await signIn(page)
   await page.goto('/settings')
-  await page.getByRole('combobox', { name: 'Theme' }).selectOption('light')
+  await page.getByRole('combobox', { name: 'Theme', exact: true }).selectOption('light')
   await page.goto('/') // navigate away immediately, before the debounced save
   await expect.poll(() => page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(false)
   await expect

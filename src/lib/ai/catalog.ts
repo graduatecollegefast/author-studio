@@ -49,6 +49,7 @@ export const TASK_TYPES = {
   book_synthesis: { label: 'Whole-book analysis (plot, themes, style, series ideas)', defaultTier: 'standard' },
   continuity_check: { label: 'Continuity checking (chapters against canon)', defaultTier: 'standard' },
   writing_assist: { label: 'Writing Studio edits and checks (rewrite, tension, POV, questions)', defaultTier: 'standard' },
+  editorial_review: { label: 'Editorial Studio reviews (developmental, line, copy, dialogue, reader)', defaultTier: 'standard' },
   writing_draft: { label: 'Drafting new prose (continue, scenes, chapters, Creative Partner)', defaultTier: 'standard' },
   planning: { label: 'Planning (concept, premise, arcs, outline, scene plans)', defaultTier: 'standard' },
   style_analysis: { label: 'Writing style profiles', defaultTier: 'standard' },

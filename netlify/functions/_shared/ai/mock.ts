@@ -100,7 +100,22 @@ function prose(input: string): string {
   if (selection) return `Mock rewrite of: ${selection.slice(0, 60)}`
   return `Mock continuation${direction ? ` following: ${direction.slice(0, 60)}` : ''}.\n\nShe walked on.`
 }
+/** Editorial: a real sentence from the chapter with a revision, a note without one, and an invented quote that must be dropped. */
+function editorial(input: string) {
+  const chapter = between(input, 'chapter')
+  const first = chapter.split(/\n+/).flatMap((para) => para.match(/[^.!?]+[.!?]+/g) ?? []).map((s) => s.trim()).find((s) => s.split(/\s+/).length >= 4)
+  if (!first) return { findings: [] }
+  return {
+    findings: [
+      { category: 'word_choice', severity: 'warning', description: 'Mock issue in this sentence.', passage: first, revision: `${first.replace(/[.!?]+$/, '')}, revised.`, explanation: 'Mock reason.' },
+      { category: 'pacing', severity: 'suggestion', description: 'Mock note with no rewrite.', passage: first, revision: '', explanation: 'Mock pacing reason.' },
+      { category: 'clarity', severity: 'critical', description: 'Invented passage.', passage: 'This sentence never appears anywhere in the chapter text.', revision: 'Nope.', explanation: 'Should be dropped.' },
+    ],
+  }
+}
+
 const WRITING: Record<string, (input: string) => unknown> = {
+  editorial_findings: editorial,
   clarification_questions: () => ({
     questions: [
       { question: 'What does Mara want most in this chapter?', context: 'It sets her choices.', options: ['To leave the island', 'To protect Eli'] },

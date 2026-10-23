@@ -15,6 +15,9 @@ import { modes, type WritingMode } from '@/styles/tokens'
 import { PAGE_WIDTHS } from '@/contexts/PreferencesContext'
 import { cn } from '@/lib/utils'
 import { AISettingsCard } from '@/components/settings/AISettingsCard'
+import { ConfirmDialog } from '@/components/ui/dialog'
+import { Link } from 'react-router'
+import { deleteAccount } from '@/services/account'
 
 function WritingPreferences() {
   const { prefs, setPrefs, syncState } = usePreferences()
@@ -82,20 +85,44 @@ function WritingPreferences() {
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
             <div className="mb-1 flex justify-between text-xs">
-              <label htmlFor="pref-size" className="font-semibold text-fg">Manuscript font size</label>
+              <label htmlFor="pref-size" className="font-semibold text-fg">
+                Manuscript font size
+              </label>
               <span className="text-fg-muted">{prefs.manuscriptSize}px</span>
             </div>
-            <input id="pref-size" type="range" min={15} max={28} step={1} value={prefs.manuscriptSize} onChange={(e) => setPrefs({ manuscriptSize: Number(e.target.value) })} className="w-full accent-[var(--action)]" />
+            <input
+              id="pref-size"
+              type="range"
+              min={15}
+              max={28}
+              step={1}
+              value={prefs.manuscriptSize}
+              onChange={(e) => setPrefs({ manuscriptSize: Number(e.target.value) })}
+              className="w-full accent-[var(--action)]"
+            />
           </div>
           <div>
             <div className="mb-1 flex justify-between text-xs">
-              <label htmlFor="pref-leading" className="font-semibold text-fg">Line spacing</label>
+              <label htmlFor="pref-leading" className="font-semibold text-fg">
+                Line spacing
+              </label>
               <span className="text-fg-muted">{prefs.lineSpacing.toFixed(1)}</span>
             </div>
-            <input id="pref-leading" type="range" min={1.4} max={2.4} step={0.1} value={prefs.lineSpacing} onChange={(e) => setPrefs({ lineSpacing: Math.round(Number(e.target.value) * 10) / 10 })} className="w-full accent-[var(--action)]" />
+            <input
+              id="pref-leading"
+              type="range"
+              min={1.4}
+              max={2.4}
+              step={0.1}
+              value={prefs.lineSpacing}
+              onChange={(e) => setPrefs({ lineSpacing: Math.round(Number(e.target.value) * 10) / 10 })}
+              className="w-full accent-[var(--action)]"
+            />
           </div>
           <div>
-            <label htmlFor="pref-width" className="mb-1 block text-xs font-semibold text-fg">Page width</label>
+            <label htmlFor="pref-width" className="mb-1 block text-xs font-semibold text-fg">
+              Page width
+            </label>
             <Select id="pref-width" value={prefs.pageWidth} onChange={(e) => setPrefs({ pageWidth: e.target.value as keyof typeof PAGE_WIDTHS })}>
               <option value="narrow">Narrow</option>
               <option value="standard">Standard</option>
@@ -103,7 +130,9 @@ function WritingPreferences() {
             </Select>
           </div>
           <div>
-            <label htmlFor="pref-goal" className="mb-1 block text-xs font-semibold text-fg">Daily word goal (optional)</label>
+            <label htmlFor="pref-goal" className="mb-1 block text-xs font-semibold text-fg">
+              Daily word goal (optional)
+            </label>
             <div className="flex gap-2">
               <Input
                 id="pref-goal"
@@ -115,9 +144,15 @@ function WritingPreferences() {
                 aria-invalid={goalError ? true : undefined}
                 aria-describedby={goalError ? 'pref-goal-error' : undefined}
               />
-              <Button variant="secondary" onClick={saveGoal}>Set</Button>
+              <Button variant="secondary" onClick={saveGoal}>
+                Set
+              </Button>
             </div>
-            {goalError && <p id="pref-goal-error" role="alert" className="mt-1 text-xs text-alert-text">{goalError}</p>}
+            {goalError && (
+              <p id="pref-goal-error" role="alert" className="mt-1 text-xs text-alert-text">
+                {goalError}
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -125,7 +160,19 @@ function WritingPreferences() {
   )
 }
 
-function Toggle({ id, label, checked, onChange, hint }: { id: string; label: string; checked: boolean; onChange: (v: boolean) => void; hint?: string }) {
+function Toggle({
+  id,
+  label,
+  checked,
+  onChange,
+  hint,
+}: {
+  id: string
+  label: string
+  checked: boolean
+  onChange: (v: boolean) => void
+  hint?: string
+}) {
   return (
     <label htmlFor={id} className="flex cursor-pointer items-start justify-between gap-4 py-2">
       <span>
@@ -156,6 +203,7 @@ export function SettingsPage() {
   const [confirm, setConfirm] = React.useState('')
   const [pwError, setPwError] = React.useState<string | null>(null)
   const [busy, setBusy] = React.useState<'profile' | 'password' | null>(null)
+  const [deleting, setDeleting] = React.useState(false)
 
   React.useEffect(() => {
     if (profile.data) {
@@ -168,8 +216,15 @@ export function SettingsPage() {
     e.preventDefault()
     setBusy('profile')
     try {
-      const pen_names = penNames.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 20)
-      const { error } = await supabase.from('profiles').update({ display_name: displayName.trim() || null, pen_names }).eq('id', user!.id)
+      const pen_names = penNames
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 20)
+      const { error } = await supabase
+        .from('profiles')
+        .update({ display_name: displayName.trim() || null, pen_names })
+        .eq('id', user!.id)
       throwIfError(error)
       await supabase.auth.updateUser({ data: { display_name: displayName.trim() || null } })
       toast.success('Profile saved')
@@ -226,15 +281,24 @@ export function SettingsPage() {
           <CardHeader title="Display" />
           <div className="divide-y divide-line px-5 pb-3">
             <div className="flex items-center justify-between gap-4 py-2">
-              <label htmlFor="theme" className="text-sm font-medium">Theme</label>
+              <label htmlFor="theme" className="text-sm font-medium">
+                Theme
+              </label>
               <Select id="theme" className="w-40" value={prefs.theme} onChange={(e) => setPrefs({ theme: e.target.value as 'dark' | 'light' })}>
                 <option value="dark">Dark</option>
                 <option value="light">Light</option>
               </Select>
             </div>
             <div className="flex items-center justify-between gap-4 py-2">
-              <label htmlFor="font-scale" className="text-sm font-medium">Text size</label>
-              <Select id="font-scale" className="w-40" value={String(prefs.fontScale)} onChange={(e) => setPrefs({ fontScale: Number(e.target.value) })}>
+              <label htmlFor="font-scale" className="text-sm font-medium">
+                Text size
+              </label>
+              <Select
+                id="font-scale"
+                className="w-40"
+                value={String(prefs.fontScale)}
+                onChange={(e) => setPrefs({ fontScale: Number(e.target.value) })}
+              >
                 <option value="0.875">Small</option>
                 <option value="1">Default</option>
                 <option value="1.125">Large</option>
@@ -269,6 +333,40 @@ export function SettingsPage() {
             </Button>
           </div>
         </Card>
+
+        <Card className="border-alert">
+          <CardHeader title="Delete account" />
+          <div className="space-y-3 px-5 pb-5 text-sm text-fg-muted">
+            <p>
+              Permanently deletes your account with every book, chapter, version, character, world element, timeline, review, export and uploaded
+              file. This cannot be undone.
+            </p>
+            <p>
+              Download a complete project backup first from{' '}
+              <Link to="/exports" className="link">
+                Exports
+              </Link>{' '}
+              if you may want any of it later.
+            </p>
+            <Button variant="danger" onClick={() => setDeleting(true)}>
+              Delete my account
+            </Button>
+          </div>
+        </Card>
+        <ConfirmDialog
+          open={deleting}
+          onOpenChange={setDeleting}
+          destructive
+          title="Delete your account?"
+          description="Everything in your account is deleted permanently, including uploaded manuscripts and covers. There is no way to recover it."
+          confirmLabel="Delete account permanently"
+          requireText="DELETE MY ACCOUNT"
+          onConfirm={async () => {
+            await deleteAccount(user!.id)
+            toast.success('Your account was deleted.')
+            window.location.assign('/login')
+          }}
+        />
       </div>
     </PageBody>
   )

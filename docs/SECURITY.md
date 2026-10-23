@@ -16,7 +16,11 @@
 - Mature content: a provider may decline a passage under its own policy. The passage is marked declined, the rest of the book continues, and the request is never resent to a different provider.
 - `AI_MOCK=1` switches the server to an offline test model for automated tests. Never set it on the live site.
 
+## Exports, backups and account deletion
+- Exports and uploaded backups live in the private `exports` bucket under the author's own folder; downloads use 60-second signed links.
+- Export and restore functions run as the signed-in author, so row-level security applies to every read and write. A restore strips owner ids, gives every row a new id, and only writes files under the author's own folder.
+- `delete_my_account()` deletes only the calling user (from the verified session); every table cascades from it. The app removes the author's stored files first.
+
 ## Not yet in place
-- Account-level deletion and full backup/restore: Phase 5.
 - The function rate limit is per instance (best effort), not a global quota.
 - Supabase manages encryption at rest and its own backups per your plan; this app adds no extra guarantees beyond that.

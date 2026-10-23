@@ -86,6 +86,7 @@ export async function recentProposals(sceneId: string): Promise<Proposal[]> {
     .from('revision_proposals')
     .select(PROPOSAL_COLUMNS)
     .eq('scene_id', sceneId)
+    .is('finding_id', null) // editorial revisions are reviewed in the Editorial Studio
     .in('status', ['generating', 'pending', 'failed'])
     .order('created_at', { ascending: false })
     .limit(10)
