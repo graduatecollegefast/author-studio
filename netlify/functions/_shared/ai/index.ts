@@ -12,15 +12,42 @@ export * from './types'
 export function availableProviders(): ProviderId[] {
   if (process.env.AI_MOCK === '1') return ['mock']
   const out: ProviderId[] = []
-  if (process.env.ANTHROPIC_API_KEY) out.push('anthropic')
-  if (process.env.OPENAI_API_KEY) out.push('openai')
+  if (envKey('ANTHROPIC_API_KEY')) out.push('anthropic')
+  if (envKey('OPENAI_API_KEY')) out.push('openai')
   return out
+}
+
+/**
+ * Read a key from the environment, removing what copy and paste often adds:
+ * surrounding spaces, line breaks, quote marks, or a "NAME=" prefix.
+ */
+export function cleanKey(raw: string | undefined, name?: string): string {
+  let k = (raw ?? '').trim()
+  if (name && k.startsWith(`${name}=`)) k = k.slice(name.length + 1).trim()
+  k = k.replace(/^["'\u201C\u2018]+|["'\u201D\u2019]+$/g, '').trim()
+  return k.replace(/\s+/g, '')
+}
+
+const envKey = (name: 'ANTHROPIC_API_KEY' | 'OPENAI_API_KEY') => cleanKey(process.env[name], name)
+
+/** A shape check only. It never reveals any part of the key. */
+export function keyFormatProblem(provider: ProviderId): string | null {
+  if (provider === 'anthropic') {
+    const k = envKey('ANTHROPIC_API_KEY')
+    if (k && !k.startsWith('sk-ant-'))
+      return 'The ANTHROPIC_API_KEY value does not look like an Anthropic API key (those start with "sk-ant-"). Check that the right key was pasted.'
+  }
+  if (provider === 'openai') {
+    const k = envKey('OPENAI_API_KEY')
+    if (k && !k.startsWith('sk-')) return 'The OPENAI_API_KEY value does not look like an OpenAI API key (those start with "sk-").'
+  }
+  return null
 }
 
 export function getProvider(id: ProviderId): AIProvider {
   if (id === 'mock' && process.env.AI_MOCK === '1') return mockProvider()
-  if (id === 'anthropic' && process.env.ANTHROPIC_API_KEY) return anthropicProvider(process.env.ANTHROPIC_API_KEY)
-  if (id === 'openai' && process.env.OPENAI_API_KEY) return openaiProvider(process.env.OPENAI_API_KEY)
+  if (id === 'anthropic' && envKey('ANTHROPIC_API_KEY')) return anthropicProvider(envKey('ANTHROPIC_API_KEY'))
+  if (id === 'openai' && envKey('OPENAI_API_KEY')) return openaiProvider(envKey('OPENAI_API_KEY'))
   throw new ProviderError(`The ${id} provider is not configured on the server.`, false)
 }
 
@@ -128,4 +155,26 @@ export async function runStructured<T>(
       await sleep(wait)
     }
   }
+}
+
+/**
+ * Check a provider key without spending anything: list models, which every valid key may do.
+ * Returns null when the key works, or a plain reason when it does not.
+ */
+export async function testProviderKey(provider: ProviderId, fetchImpl: typeof fetch = fetch): Promise<string | null> {
+  if (provider === 'mock') return null
+  const name = provider === 'anthropic' ? 'ANTHROPIC_API_KEY' : 'OPENAI_API_KEY'
+  const key = envKey(name)
+  if (!key) return `${name} is not set on the server.`
+  const res = await fetchImpl(provider === 'anthropic' ? 'https://api.anthropic.com/v1/models?limit=1' : 'https://api.openai.com/v1/models', {
+    headers: provider === 'anthropic' ? { 'x-api-key': key, 'anthropic-version': '2023-06-01' } : { authorization: `Bearer ${key}` },
+  }).catch(() => null)
+  if (!res) return `Could not reach ${provider === 'anthropic' ? 'Anthropic' : 'OpenAI'} from the server. Try again in a minute.`
+  if (res.ok) return null
+  const body = (await res.json().catch(() => ({}))) as { error?: { message?: string } }
+  const detail = (body.error?.message ?? '').slice(0, 200)
+  const who = provider === 'anthropic' ? 'Anthropic' : 'OpenAI'
+  if (res.status === 401) return `${who} rejected the key${detail ? ` (${who} says: ${detail})` : ''}.`
+  if (res.status === 403) return `${who} accepted the key but refused access${detail ? ` (${who} says: ${detail})` : ''}.`
+  return `${who} answered with error ${res.status}${detail ? `: ${detail}` : ''}.`
 }

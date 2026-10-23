@@ -26,10 +26,10 @@ async function callFunction<T>(name: string, init: { method?: 'GET' | 'POST'; bo
 // Providers, settings, usage
 // ---------------------------------------------------------------------------
 export interface AIStatus {
-  providers: Array<{ id: string; capabilities: { structuredOutput: boolean; streaming: boolean } }>
+  providers: Array<{ id: string; capabilities: { structuredOutput: boolean; streaming: boolean }; problem: string | null; checked: boolean }>
   models: ModelInfo[]
 }
-export const getAIStatus = () => callFunction<AIStatus>('ai-status', { method: 'GET' })
+export const getAIStatus = (check = false) => callFunction<AIStatus>(check ? 'ai-status?check=1' : 'ai-status', { method: 'GET' })
 
 export interface AISettingsRow {
   daily_limit_usd: number

@@ -13,7 +13,8 @@ const PROVIDER_NAMES: Record<string, string> = { anthropic: 'Anthropic (Claude)'
 
 export function AISettingsCard() {
   const qc = useQueryClient()
-  const status = useQuery({ queryKey: ['ai-status'], queryFn: getAIStatus, staleTime: 60_000 })
+  const status = useQuery({ queryKey: ['ai-status'], queryFn: () => getAIStatus(), staleTime: 60_000 })
+  const [testing, setTesting] = React.useState(false)
   const settings = useQuery({ queryKey: ['ai-settings'], queryFn: getAISettings })
   const usage = useQuery({ queryKey: ['ai-usage'], queryFn: () => getUsageSummary() })
   const [draft, setDraft] = React.useState<AISettingsRow | null>(null)
@@ -63,13 +64,44 @@ export function AISettingsCard() {
           ) : status.error ? (
             <ErrorState error={status.error} onRetry={() => void status.refetch()} />
           ) : available.length ? (
-            <ul className="flex flex-wrap gap-2" data-testid="ai-providers">
-              {available.map((p) => (
-                <li key={p}>
-                  <Badge tone="progress">{PROVIDER_NAMES[p] ?? p}: connected</Badge>
-                </li>
-              ))}
-            </ul>
+            <div className="space-y-3">
+              <ul className="space-y-2" data-testid="ai-providers">
+                {(status.data?.providers ?? []).map((p) => (
+                  <li key={p.id} className="flex flex-wrap items-center gap-2">
+                    {p.problem ? (
+                      <>
+                        <Badge tone="alert">{PROVIDER_NAMES[p.id] ?? p.id}: key problem</Badge>
+                        <span className="text-alert-text" role="status">
+                          {p.problem}
+                        </span>
+                      </>
+                    ) : (
+                      <Badge tone="progress">
+                        {PROVIDER_NAMES[p.id] ?? p.id}: {p.checked ? 'key works' : 'connected'}
+                      </Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={testing}
+                onClick={async () => {
+                  setTesting(true)
+                  try {
+                    qc.setQueryData(['ai-status'], await getAIStatus(true))
+                  } catch (e) {
+                    toast.error(e instanceof Error ? e.message : 'Could not test the connection')
+                  } finally {
+                    setTesting(false)
+                  }
+                }}
+              >
+                {testing ? 'Testing...' : 'Test connection'}
+              </Button>
+              <p className="text-xs text-fg-muted">Testing lists the provider's models. It is free and never shows your key.</p>
+            </div>
           ) : (
             <p className="rounded-lg border border-alert bg-alert-soft p-3 text-alert-text" role="status">
               No AI provider is connected. Add ANTHROPIC_API_KEY or OPENAI_API_KEY to the Netlify environment variables for this site, then

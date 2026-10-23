@@ -27,7 +27,11 @@ export function openaiProvider(apiKey: string, fetchImpl: typeof fetch = fetch):
     const data = (await res.json().catch(() => ({}))) as ResponsesResponse
     if (!res.ok) {
       const retryable = res.status === 429 || res.status >= 500
-      const msg = res.status === 401 ? 'The OpenAI API key was rejected.' : `OpenAI error ${res.status}: ${(data.error?.message ?? '').slice(0, 200)}`
+      const detail = (data.error?.message ?? '').slice(0, 200)
+      const msg =
+        res.status === 401
+          ? `The OpenAI API key was rejected${detail ? ` (OpenAI says: ${detail})` : ''}. Check OPENAI_API_KEY in the Netlify environment variables.`
+          : `OpenAI error ${res.status}: ${detail}`
       throw new ProviderError(msg, retryable, retryAfter(res), res.status)
     }
     const usage = { inputTokens: data.usage?.input_tokens ?? 0, outputTokens: data.usage?.output_tokens ?? 0 }

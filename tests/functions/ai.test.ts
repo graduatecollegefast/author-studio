@@ -4,7 +4,7 @@ import { chunkDiscoveries, synthesisDiscoveries } from '../../netlify/functions/
 import { EXTRACTION_SCHEMA, extractionInput, SYNTHESIS_SCHEMA } from '../../netlify/functions/_shared/analysis/prompts'
 import { anthropicProvider } from '../../netlify/functions/_shared/ai/anthropic'
 import { openaiProvider } from '../../netlify/functions/_shared/ai/openai'
-import { checkBudget, DEFAULT_SETTINGS } from '../../netlify/functions/_shared/ai'
+import { checkBudget, cleanKey, DEFAULT_SETTINGS, testProviderKey } from '../../netlify/functions/_shared/ai'
 import { OutputTruncated, ProviderDeclined, ProviderError } from '../../netlify/functions/_shared/ai/types'
 import { costUsd, findModel, resolveRoute } from '../../src/lib/ai/catalog'
 
@@ -186,7 +186,12 @@ describe('Anthropic adapter', () => {
     expect(err).toBeInstanceOf(ProviderError)
     expect(err).toMatchObject({ retryable: true, retryAfterMs: 2000 })
     const bad = await anthropicProvider('k', fakeFetch(401, {}) as never).generateStructuredData(req).catch((e) => e)
-    expect(bad).toMatchObject({ retryable: false, message: 'The Anthropic API key was rejected.' })
+    expect(bad).toMatchObject({ retryable: false })
+    expect(bad.message).toMatch(/^The Anthropic API key was rejected\. Check ANTHROPIC_API_KEY/)
+    const said = await anthropicProvider('k', fakeFetch(401, { error: { type: 'authentication_error', message: 'invalid x-api-key' } }) as never)
+      .generateStructuredData(req)
+      .catch((e) => e)
+    expect(said.message).toContain('(Anthropic says: invalid x-api-key)')
   })
 })
 
@@ -202,5 +207,30 @@ describe('OpenAI adapter', () => {
   it('reports refusals', async () => {
     const f = fakeFetch(200, { status: 'completed', output: [{ type: 'message', content: [{ type: 'refusal', refusal: 'no' }] }], usage: {} })
     await expect(openaiProvider('k', f as never).generateStructuredData(req)).rejects.toBeInstanceOf(ProviderDeclined)
+  })
+})
+
+describe('API keys from the environment', () => {
+  it('removes what copy and paste adds around a key', () => {
+    expect(cleanKey('  sk-ant-api03-abc\n')).toBe('sk-ant-api03-abc')
+    expect(cleanKey('"sk-ant-api03-abc"')).toBe('sk-ant-api03-abc')
+    expect(cleanKey('ANTHROPIC_API_KEY=sk-ant-api03-abc', 'ANTHROPIC_API_KEY')).toBe('sk-ant-api03-abc')
+    expect(cleanKey('sk-ant-api03-\nabc')).toBe('sk-ant-api03-abc')
+    expect(cleanKey(undefined)).toBe('')
+  })
+  it('tests a key with a free model-list call and reports the provider reason', async () => {
+    const prev = process.env.ANTHROPIC_API_KEY
+    process.env.ANTHROPIC_API_KEY = ' sk-ant-test '
+    try {
+      const ok = vi.fn(async () => new Response('{}', { status: 200 }))
+      expect(await testProviderKey('anthropic', ok as never)).toBeNull()
+      const [url, init] = ok.mock.calls[0] as unknown as [string, RequestInit]
+      expect(url).toBe('https://api.anthropic.com/v1/models?limit=1')
+      expect((init.headers as Record<string, string>)['x-api-key']).toBe('sk-ant-test')
+      const bad = fakeFetch(401, { error: { message: 'invalid x-api-key' } })
+      expect(await testProviderKey('anthropic', bad as never)).toBe('Anthropic rejected the key (Anthropic says: invalid x-api-key).')
+    } finally {
+      process.env.ANTHROPIC_API_KEY = prev
+    }
   })
 })
